@@ -77,7 +77,7 @@ WSGI_APPLICATION = 'PTF.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=env('DATABASE_URL'),
+        default=env('DATABASE_PUBLIC_URL'),
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -147,7 +147,7 @@ if not DEBUG:
     # Trust the reverse proxy's signal that the original request was HTTPS.
     # Required on most PaaS platforms (Render, Railway, Heroku, nginx, etc.)
     # or SECURE_SSL_REDIRECT will cause an infinite redirect loop.
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'http')
 
     SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
 
