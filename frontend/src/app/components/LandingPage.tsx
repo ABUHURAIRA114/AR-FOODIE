@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { HeroBurger } from "./HeroBurger";
 import { Link, useNavigate } from "react-router";
 import { checkUserAuth, logoutRequest } from "../lib/auth";
+import logo from "../../assets/logo.png";
 
 
 // ── Design tokens ──────────────────────────────────────────────────
@@ -111,41 +112,43 @@ function FadeUp({ children, delay = 0, style = {} }: { children: React.ReactNode
 // ── LOGO SVG (inline, matches the uploaded knife logo) ────────────
 function DinenicsBrandLogo() {
   return (
-    <Link to="/" style={{ 
-      textDecoration: "none", 
-      display: "inline-flex", 
-      alignItems: "center",
-      transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)"
-    }}
-    onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"}
-    onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+    <Link
+      to="/"
+      style={{
+        textDecoration: "none",
+        display: "inline-flex",
+        alignItems: "center",
+        transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)"
+      }}
+      onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"}
+      onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+    >
       {/* Premium Stand-out Square Badge Container */}
       <div style={{
-        background: "#0d0d0d",
-        padding: "0.55rem 0.65rem",
+        background: "#051419",
+        padding: "0rem 0rem",
         borderRadius: 14,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 184, 0, 0.15)",
-        border: "1px solid rgba(255, 255, 255, 0.03)"
+        border: "1px solid rgba(255, 255, 255, 0.03)",
+        /* Ensure the container doesn't grow */
+        width: "70px",
+        height: "70px",
+        overflow: "hidden"
       }}>
-        {/* Corrected Vector Paths replicating the 3 solid chef knives with face silhouette cutouts */}
-        <svg width="36" height="42" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
-          {/* Base Yellow Color for all Blades */}
-          <g fill="#F5B800">
-            {/* Knife 1 (Left) */}
-            <path d="M25 20 C23.5 20 22 25 22 34 C22 40 18.5 44 20 49 C21.5 53 18 57 19.5 61 C21 64.5 18 69 20 73 C21.5 76 22 83 23 88 C24.5 98 21.5 106 19 114 C25 106 29 88 29 60 C29 34 27.5 20 25 20Z" />
-            
-            {/* Knife 2 (Middle) */}
-            <path d="M49 20 C47.5 20 46 25 46 34 C46 40 42.5 44 44 49 C45.5 53 42 57 43.5 61 C45 64.5 42 69 44 73 C45.5 76 46 83 47 88 C48.5 98 45.5 106 43 114 C49 106 53 88 53 60 C53 34 51.5 20 49 20Z" />
-            
-            {/* Knife 3 (Right) */}
-            <path d="M73 20 C71.5 20 70 25 70 34 C70 40 66.5 44 68 49 C69.5 53 66 57 67.5 61 C69 64.5 66 69 68 73 C69.5 76 70 83 71 88 C72.5 98 69.5 106 67 114 C73 106 77 88 77 60 C77 34 75.5 20 73 20Z" />
-          </g>
-          {/* Exact Trademark Placement */}
-          <text x="79" y="114" fill="#F5B800" fontSize="6.5" fontWeight="900" fontFamily="system-ui, -apple-system, sans-serif">TM</text>
-        </svg>
+        <img
+          src={logo}
+          alt="Dinenics Logo"
+          style={{
+            /* Make the image larger than the container */
+            width: "200px",
+            height: "200px",
+            objectFit: "contain",
+            display: "block"
+          }}
+        />
       </div>
     </Link>
   );
@@ -197,7 +200,7 @@ function Nav() {
       <nav style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: isNarrow ? "1rem 1.25rem" : "1rem 2.5rem",
+        padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
         background: "rgba(13,26,31,0.85)",
         backdropFilter: "blur(14px)",
         borderBottom: `1px solid ${T.border}`,
@@ -449,7 +452,7 @@ function VideoSection() {
           }}>
             <iframe
               src="https://www.youtube.com/embed/jWT5VKwP8fU?si=UqVtQ1i2V7L6yu7A"
-              title="MenuLens Demo"
+              title="Dinenics Demo"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               style={{ width: "100%", height: "100%", border: "none", display: "block" }}
@@ -473,7 +476,7 @@ function ProblemSection() {
     <section id="problem" style={{ maxWidth: 1100, margin: "0 auto", padding: "6rem 2rem" }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: "4rem", alignItems: "center" }}>
         <FadeUp>
-          <SectionLabel>Why MenuLens</SectionLabel>
+          <SectionLabel>Why Dinenics</SectionLabel>
           <h2 style={{ fontSize: "clamp(1.8rem,4vw,2.8rem)", fontWeight: 800, letterSpacing: "-0.025em", color: T.text, marginBottom: "0.75rem" }}>
             The Problem We're Solving
           </h2>
@@ -539,9 +542,9 @@ const plans = [
       "Custom QR Codes + Shareable Links for Instagram",
       "Universal Device Support (Full Android & iOS Support)",
       "Total Monthly Scan Count Dashboard",
-  
+
     ],
-    comingSoonFeatures: [ 
+    comingSoonFeatures: [
       "QR Codes + Model Viewer for Web Embedding",
       "Advanced Analytics & Scan Heatmaps",
       "Dedicated Account Manager",
@@ -689,7 +692,7 @@ function Footer() {
     <footer style={{ background: T.bg, borderTop: `1px solid ${T.border}`, padding: "3rem 2rem" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: "2rem" }}>
         <div>
-          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: T.accent, marginBottom: "0.3rem" }}>MenuLens</div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: T.accent, marginBottom: "0.3rem" }}>Dinenics</div>
           <p style={{ color: T.muted, fontSize: "0.88rem", marginBottom: "0.6rem" }}>Bringing Pakistani food to life</p>
           <a href="https://wa.me/923119042553" style={{ color: T.primary, textDecoration: "none", fontSize: "0.88rem" }}>
             +92 311 9042553
@@ -714,7 +717,7 @@ function Footer() {
         </div>
       </div>
       <div style={{ maxWidth: 1100, margin: "2rem auto 0", paddingTop: "1.5rem", borderTop: "1px solid rgba(255,255,255,0.05)", textAlign: "center", color: "rgba(133,170,170,0.45)", fontSize: "0.78rem" }}>
-        © 2026 MenuLens. All rights reserved.
+        © 2026 Dinenics. All rights reserved.
       </div>
     </footer>
   );

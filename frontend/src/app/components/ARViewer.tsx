@@ -67,11 +67,11 @@ function QRCodeBlock({ url, label }: { url: string; label: string }) {
 }
 
 const DEMO_MODEL = {
-  name: "DEMO-MENULENS",
+  name: "DEMO-Dinenics",
   description: "Sample AR model — scan the QR code to view it on your phone.",
-  glb_url: "/media/scenes/general/DEMO-MENULENS.glb",
+  glb_url: "/media/scenes/general/DEMO-Dinenics.glb",
   usdz_url: null as string | null,
-  ar_url: "/view/4c578d1b-26a9-4401-9791-44128970cd52/",
+  ar_url: "/view/30d1bc3e-3125-4e70-b4b0-15db52f759c7/",
 };
 
 // ── Info panel content (shared between sidebar layout and drawer) ──
@@ -142,10 +142,10 @@ export function ARViewer() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isNarrow ? "1rem 1.25rem" : "1rem 2rem", borderBottom: `1px solid ${T.border}`, background: "rgba(13,26,31,0.85)", backdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 50 }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", color: T.muted, fontSize: "0.88rem" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
-          {!isNarrow && "Back to MenuLens"}
+          {!isNarrow && "Back to Dinenics"}
         </Link>
         <span style={{ fontSize: isNarrow ? "1.05rem" : "1.2rem", fontWeight: 800, color: T.accent }}>
-          MenuLens Viewer
+          Dinenics Viewer
         </span>
 
         {isNarrow ? (
