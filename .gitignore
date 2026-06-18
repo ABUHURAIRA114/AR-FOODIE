@@ -6,3 +6,5 @@ media/
 node_modules/
 dist/
 frontend/node_modules/
+
+frontend/node_modules/
