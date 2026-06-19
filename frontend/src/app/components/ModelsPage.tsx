@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router";
 import { checkAuth, getCsrfToken, logoutRequest } from "../lib/auth";
 import { QRCodeSVG } from "qrcode.react";
 
+const API_URL = (import.meta as any).env.VITE_API_URL || "";
+
 
 const T = {
     bg: "#0d1a1f", bg2: "#111f25", bg3: "#16262d",
@@ -49,8 +51,12 @@ export function ModelsPage() {
 
     const loadScenes = () => {
         setLoading(true);
-        fetch("/api/dishes/")
-            .then(r => r.json())
+        setError(null);
+        fetch(`${API_URL}/api/dishes/`, { credentials: "include" })
+            .then(r => {
+                if (!r.ok) throw new Error(`Request failed: ${r.status}`);
+                return r.json();
+            })
             .then(data => setScenes(data.dishes))
             .catch(() => setError("Could not load models."))
             .finally(() => setLoading(false));
