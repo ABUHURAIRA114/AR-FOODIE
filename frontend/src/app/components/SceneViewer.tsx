@@ -115,7 +115,7 @@ export function SceneViewer() {
           slot="ar-button"
           style={{
             position: "absolute",
-            bottom: "2rem",
+            bottom: "20%",
             left: "50%",
             transform: "translateX(-50%)",
             background: T.primary,
