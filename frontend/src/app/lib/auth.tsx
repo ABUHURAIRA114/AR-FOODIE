@@ -1,5 +1,5 @@
 export async function getCsrfToken(): Promise<string> {
-  const res = await fetch("/api/csrf/", { credentials: "include" });
+  const res = await fetch("${import.meta.env.VITE_API_URL}/api/csrf/", { credentials: "include" });
   const data = await res.json();
   return data.csrfToken;
 }
