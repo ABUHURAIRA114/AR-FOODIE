@@ -17,3 +17,13 @@ class Scene(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.parent})"
+
+class UserRegister(models.Model):
+
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    username = models.CharField(max_length=40, unique=True)
+    password = models.CharField(max_length=128)  # Store hashed password
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Register for {self.user.username} at {self.created_at}"
