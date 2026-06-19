@@ -69,9 +69,9 @@ const API_URL = (import.meta as any).env.VITE_API_URL || "";
 const DEMO_MODEL = {
   name: "DEMO-Dinenics",
   description: "Sample AR model — scan the QR code to view it on your phone.",
- glb_url: `${API_URL}/media/<actual-path-from-step-1>`,
+ glb_url: `${API_URL}/media/scenes/general/DEMO-Dinenics.glb`,
   usdz_url: null as string | null,
- ar_url: `${API_URL}/view/<new-real-uuid>/`,
+ ar_url: `${API_URL}/view/8522d019-69b3-42ae-b603-905c1f471d98/`,
 };
 
 // ── Info panel content (shared between sidebar layout and drawer) ──
