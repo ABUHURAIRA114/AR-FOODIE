@@ -11,6 +11,10 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=False)
 
+# Railway sets PORT automatically
+PORT = os.environ.get('PORT', '8000')
+
+# Make sure these are set via Railway env vars
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
 CORS_ALLOW_CREDENTIALS = True
@@ -68,6 +72,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                
             ],
         },
     },
@@ -102,7 +107,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
+<<<<<<< HEAD
 MEDIA_ROOT = '/app/media'
+||||||| 29175ed9
+MEDIA_ROOT = BASE_DIR / 'media'
+=======
+MEDIA_ROOT = env('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
+>>>>>>> a31253946bed54c68739b889533811cf4a46f43b
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
@@ -147,7 +158,7 @@ if not DEBUG:
     # Trust the reverse proxy's signal that the original request was HTTPS.
     # Required on most PaaS platforms (Render, Railway, Heroku, nginx, etc.)
     # or SECURE_SSL_REDIRECT will cause an infinite redirect loop.
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'http')
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
     SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
 
