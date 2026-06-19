@@ -14,9 +14,6 @@ DEBUG = env.bool('DEBUG', default=False)
 # Railway sets PORT automatically
 PORT = os.environ.get('PORT', '8000')
 
-# Static files via whitenoise
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesResponse'
-
 # Make sure these are set via Railway env vars
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
@@ -155,7 +152,7 @@ if not DEBUG:
     # Trust the reverse proxy's signal that the original request was HTTPS.
     # Required on most PaaS platforms (Render, Railway, Heroku, nginx, etc.)
     # or SECURE_SSL_REDIRECT will cause an infinite redirect loop.
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'http')
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
     SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
 
