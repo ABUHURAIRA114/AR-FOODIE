@@ -5,7 +5,7 @@ import { ModelsPage } from "./components/ModelsPage";
 import { AdminLoginPage } from "./components/AdminLoginPage";
 import { UserLoginPage } from "./components/UserLoginPage";
 import { UserRegisterPage } from "./components/UserRegisterPage";
-import { SceneViewer } from "./components/SceneViewer";
+import { SceneViewer } from "./components/Sceneviewer";
 
 export default function App() {
   return (
