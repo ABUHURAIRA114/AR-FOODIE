@@ -19,6 +19,10 @@ def home(request):
     models = Scene.objects.all().order_by('-created_at')
     return render(request, 'viewer/home.html', {'models': models})
 
+def view_model(request, pk):
+    model = get_object_or_404(Scene, pk=pk)
+    return render(request, 'viewer/view_model.html', {'model': model})
+
 def api_scene(request, pk):
     scene = get_object_or_404(Scene, pk=pk)
     return JsonResponse({
