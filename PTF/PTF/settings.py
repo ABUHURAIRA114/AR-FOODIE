@@ -107,13 +107,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
-<<<<<<< HEAD
 MEDIA_ROOT = '/app/media'
-||||||| 29175ed9
-MEDIA_ROOT = BASE_DIR / 'media'
-=======
-MEDIA_ROOT = env('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
->>>>>>> a31253946bed54c68739b889533811cf4a46f43b
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
