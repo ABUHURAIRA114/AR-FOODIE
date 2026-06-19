@@ -65,13 +65,13 @@ function QRCodeBlock({ url, label }: { url: string; label: string }) {
     </div>
   );
 }
-
+const API_URL = (import.meta as any).env.VITE_API_URL || "";
 const DEMO_MODEL = {
   name: "DEMO-Dinenics",
   description: "Sample AR model — scan the QR code to view it on your phone.",
-  glb_url: "/view/ce0a3ea1-bc49-41b7-b06f-d2922e42d53e/",
+ glb_url: `${API_URL}/media/<actual-path-from-step-1>`,
   usdz_url: null as string | null,
-  ar_url: "/view/ce0a3ea1-bc49-41b7-b06f-d2922e42d53e/",
+ ar_url: `${API_URL}/view/<new-real-uuid>/`,
 };
 
 // ── Info panel content (shared between sidebar layout and drawer) ──

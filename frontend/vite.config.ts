@@ -26,7 +26,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  assetsInclude: ['**/*.svg', '**/*.csv'],
+    assetsInclude: ['**/*.svg', '**/*.csv', '**/*.glb', '**/*.usdz'],
 
   // Proxy API and media requests to Django during development
   server: {

@@ -1,5 +1,5 @@
 import React from "react";
-
+import burgerModel from "../../assets/burger.glb";
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -29,7 +29,7 @@ export function HeroBurger() {
       zIndex: 1,
     }}>
       <model-viewer
-        src="/src/assets/burger.glb"
+        src={burgerModel}
         alt="Realistic burger"
         auto-rotate
         auto-rotate-delay="0"
