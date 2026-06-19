@@ -23,6 +23,17 @@ def view_model(request, pk):
     model = get_object_or_404(Scene, pk=pk)
     return render(request, 'viewer/view_model.html', {'model': model})
 
+def api_scene(request, pk):
+    scene = get_object_or_404(Scene, pk=pk)
+    return JsonResponse({
+        'id': scene.id,
+        'name': scene.name,
+        'description': scene.description,
+        'parent': scene.parent,
+        'glb_url': request.build_absolute_uri(scene.glb_file.url) if scene.glb_file else None,
+        'usdz_url': request.build_absolute_uri(scene.usdz_file.url) if scene.usdz_file else None,
+    })
+
 def api_dishes(request):
     if request.user.is_authenticated and request.user.is_staff:
         dishes = Scene.objects.all().order_by('-created_at').values(
@@ -45,9 +56,9 @@ def api_dishes(request):
             'name': d['name'],
             'description': d['description'],
             'parent': d['parent'],
-            'glb_url': f"/media/{d['glb_file']}" if d['glb_file'] else None,
-            'usdz_url': f"/media/{d['usdz_file']}" if d['usdz_file'] else None,
-            'ar_url': f"/view/{d['id']}/"
+            'glb_url': request.build_absolute_uri(f"/media/{d['glb_file']}") if d['glb_file'] else None,
+            'usdz_url': request.build_absolute_uri(f"/media/{d['usdz_file']}") if d['usdz_file'] else None,
+            'ar_url': f"/ar-view/{d['id']}/"
         })
 
     return JsonResponse({'dishes': data})
@@ -83,7 +94,7 @@ def upload_scene(request):
         'parent': scene.parent,
         'glb_url': f"/media/{scene.glb_file}",
         'usdz_url': f"/media/{scene.usdz_file}" if scene.usdz_file else None,
-        'ar_url': f"/view/{scene.id}/",
+        'ar_url': f"/ar-view/{scene.id}/",
     })
 
 @require_POST

@@ -12,6 +12,9 @@ declare global {
         'rotation-per-second'?: string;
         'shadow-intensity'?: string;
         'environment-image'?: string;
+        'ios-src'?: string;
+        ar?: boolean;
+        'ar-modes'?: string;
       };
     }
   }
