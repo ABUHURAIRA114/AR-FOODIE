@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { HeroBurger } from "./HeroBurger";
 import { Link, useNavigate } from "react-router";
 import { checkUserAuth, logoutRequest } from "../lib/auth";
-import logo from "../../assets/logo.png";
+import logo from "../../assets/logo.webp";
 
 
 // ── Design tokens ──────────────────────────────────────────────────
