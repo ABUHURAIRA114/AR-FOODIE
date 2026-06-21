@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import burgerModel from "../../assets/burger.glb";
 declare global {
   namespace JSX {
@@ -32,13 +32,19 @@ export function HeroBurger() {
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
-
   return (
-    <div ref={ref} style={{ position: "absolute", inset: 0, ... }}>
-      {visible && (
-        <model-viewer
-          src={burgerModel}
-          loading="lazy"
+    <div style={{
+      position: "absolute",
+      inset: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      pointerEvents: "none",
+      zIndex: 1,
+    }}>
+      <model-viewer
+        src={burgerModel}
+        loading="lazy"
         alt="Realistic burger"
         auto-rotate
         auto-rotate-delay="0"
@@ -55,7 +61,6 @@ export function HeroBurger() {
           "--poster-color": "transparent",
         } as React.CSSProperties}
       />
-      )}
     </div>
   );
 }
