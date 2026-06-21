@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
+import { T } from "./tokens.mts";
 
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
 
@@ -11,15 +12,6 @@ interface SceneData {
   glb_url: string | null;
   usdz_url: string | null;
 }
-
-const T = {
-  bg: "#0d1a1f",
-  text: "#e8ddd0",
-  primary: "#A65111",
-  accent: "#DDAA00",
-  muted: "#85AAAA",
-  border: "rgba(166,81,17,0.4)",
-} as const;
 
 export function SceneViewer() {
   const { id } = useParams<{ id: string }>();

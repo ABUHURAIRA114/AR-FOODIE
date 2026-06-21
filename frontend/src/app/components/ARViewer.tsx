@@ -1,18 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { QRCodeSVG } from "qrcode.react";
+import { T } from "./tokens.mts";
 
-const T = {
-  bg: "#0d1a1f",
-  bg2: "#111f25",
-  bg3: "#16262d",
-  primary: "#A65111",
-  primaryL: "#C4621A",
-  accent: "#DDAA00",
-  text: "#e8ddd0",
-  muted: "#85AAAA",
-  border: "rgba(166,81,17,0.25)",
-} as const;
 
 // ── Responsive: portrait/narrow detection ─────────────────────────
 function useIsNarrow(breakpoint = 860) {

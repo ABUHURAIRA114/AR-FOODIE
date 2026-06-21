@@ -1,16 +1,10 @@
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
-from .models import Scene, UserRegister
+from .models import Scene
 from django.contrib.auth.models import User
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
 from django.contrib.auth import authenticate, login, logout
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.middleware.csrf import get_token
-from django.views.decorators.http import require_POST
-import io
-import base64
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 
@@ -63,7 +57,7 @@ def api_dishes(request):
 def upload_scene(request):
     if not (request.user.is_authenticated and request.user.is_staff):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
-    target_username = request.POST.get('target_username',''.strip())
+    target_username = request.POST.get('target_username','').strip()
     owner = get_object_or_404(User, username=target_username) if target_username else request.user
     name = request.POST.get('name', '').strip()
     description = request.POST.get('description', '').strip()

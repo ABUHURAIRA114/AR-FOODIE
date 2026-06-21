@@ -16,6 +16,17 @@ function figmaAssetResolver() {
 }
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router'],
+          'three-vendor': ['three'],
+          'ui-vendor': ['lucide-react', 'qrcode.react'],
+        },
+      },
+    },
+  },
   plugins: [
     figmaAssetResolver(),
     react(),

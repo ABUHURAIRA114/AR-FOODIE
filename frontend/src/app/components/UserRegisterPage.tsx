@@ -1,16 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { registerRequest } from "../lib/auth";
+import { T } from "./tokens.mts";
 
-const T = {
-  bg: "#0d1a1f",
-  bg3: "#16262d",
-  primary: "#A65111",
-  accent: "#DDAA00",
-  text: "#e8ddd0",
-  muted: "#85AAAA",
-  border: "rgba(166,81,17,0.25)",
-} as const;
 
 export function UserRegisterPage() {
     const [username, setUsername] = useState("");
