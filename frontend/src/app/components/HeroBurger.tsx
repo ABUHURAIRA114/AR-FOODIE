@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import burgerModel from "../../assets/burger.glb";
 declare global {
   namespace JSX {
@@ -21,18 +21,24 @@ declare global {
 }
 
 export function HeroBurger() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.1 }
+    );
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
+
   return (
-    <div style={{
-      position: "absolute",
-      inset: 0,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      pointerEvents: "none",
-      zIndex: 1,
-    }}>
-      <model-viewer
-        src={burgerModel}
+    <div ref={ref} style={{ position: "absolute", inset: 0, ... }}>
+      {visible && (
+        <model-viewer
+          src={burgerModel}
+          loading="lazy"
         alt="Realistic burger"
         auto-rotate
         auto-rotate-delay="0"
@@ -49,6 +55,7 @@ export function HeroBurger() {
           "--poster-color": "transparent",
         } as React.CSSProperties}
       />
+      )}
     </div>
   );
 }
