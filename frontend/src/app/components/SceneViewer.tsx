@@ -94,7 +94,7 @@ export function SceneViewer() {
         ref={viewerRef}
         id="viewer"
         src={scene.glb_url}
-        ios-src={scene.usdz_url || undefined}
+        ios-src={scene.usdz_url}
         alt={scene.name}
         ar
         ar-modes="webxr scene-viewer quick-look"
@@ -107,7 +107,7 @@ export function SceneViewer() {
           slot="ar-button"
           style={{
             position: "absolute",
-            bottom: "20%",
+            bottom: "10%",
             left: "50%",
             transform: "translateX(-50%)",
             background: T.primary,
