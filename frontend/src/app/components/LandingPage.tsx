@@ -429,6 +429,7 @@ function VideoSection() {
           <GlowLine />
         </FadeUp>
 
+
         <FadeUp delay={0.2} style={{ marginTop: "3rem" }}>
           <div style={{
             borderRadius: 16, overflow: "hidden",
@@ -437,7 +438,7 @@ function VideoSection() {
             aspectRatio: "16/9", maxWidth: 800, margin: "0 auto",
           }}>
             <iframe
-              src="https://www.youtube.com/embed/jWT5VKwP8fU?si=UqVtQ1i2V7L6yu7A"
+              src="https://www.youtube.com/embed/5VfGemINyp0"
               title="Dinenics Demo"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
