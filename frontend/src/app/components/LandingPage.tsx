@@ -311,9 +311,7 @@ function Hero() {
       <div style={{ position: "absolute", inset: 0, background: "rgba(13,26,31,0.45)", pointerEvents: "none" }} />
 
       <div style={{ position: "relative", zIndex: 10, textAlign: "center", padding: "0 1.5rem", maxWidth: 800 }}>
-        <div style={{ display: "inline-block", background: "rgba(166,81,17,0.15)", border: `1px solid rgba(166,81,17,0.5)`, color: T.accent, fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "0.35rem 1rem", borderRadius: 999, marginBottom: "1.5rem" }}>
-          🇵🇰 Now available in Pakistan
-        </div>
+      
 
         <h1 style={{ fontSize: "clamp(2.4rem,6vw,4.4rem)", fontWeight: 900, lineHeight: 1.08, letterSpacing: "-0.03em", marginBottom: "1.4rem", color: T.text }}>
           Make Your Menu<br /><AccentText>Come Alive</AccentText>
