@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Scene
+from .models import Response, Scene
 
 admin.site.register(Scene)
-admin.site.register(Review)
+admin.site.register(Response)
