@@ -19,6 +19,8 @@ export default function App() {
         <Route path="/user-login" element={<UserLoginPage />} />
         <Route path="/user-register" element={<UserRegisterPage />} />
         <Route path= "/user-logout" element={<UserLoginPage />} />
+        <Route path= "/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path= "/terms" element={<TermsPage />} />
       </Routes>
     </BrowserRouter>
   );
