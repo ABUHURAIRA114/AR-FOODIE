@@ -374,7 +374,6 @@ export function SceneViewer() {
         ar
         ar-modes="scene-viewer quick-look"
         quick-look-browsers="safari chrome firefox"
-        xr-environment
         ar-scale="fixed"
         ar-placement="floor"
         camera-controls
