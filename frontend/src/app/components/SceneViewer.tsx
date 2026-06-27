@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { T } from "./tokens.mts";
+// import { ImageTrackingViewer } from "./ImageTrackingViewer";
+import { WebXRPlacementViewer } from "./WebXRPlacementViewer";
 
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
 
@@ -11,6 +13,8 @@ interface SceneData {
   parent: string;
   glb_url: string | null;
   usdz_url: string | null;
+  /** Compiled MindAR .mind target file for the image-tracking fallback. */
+  mind_target_url?: string | null;
 }
 
 export function SceneViewer() {
@@ -23,55 +27,62 @@ export function SceneViewer() {
   const [arActive, setArActive] = useState(false);
   const [arSupported, setArSupported] = useState(true);
   const [arMessage, setArMessage] = useState<string | null>(null);
-  const [arTracking, setArTracking] = useState(true);
-  const [arPlaced, setArPlaced] = useState(false);
 
   const [modelLoading, setModelLoading] = useState(true);
   const [modelError, setModelError] = useState(false);
   const [modelProgress, setModelProgress] = useState(0);
 
+  // Fallback path for devices without WebXR/Scene Viewer/Quick Look support.
+  const [imageTrackingActive, setImageTrackingActive] = useState(false);
+
+  // Custom tap-to-place WebXR path, separate from model-viewer's AR entirely.
+  const [webXrActive, setWebXrActive] = useState(false);
+  const [webXrSupported, setWebXrSupported] = useState(false);
+
   const viewerRef = useRef<HTMLElement>(null);
 
-  // --- AR status + support detection ---
+  // --- WebXR hit-test support detection (for the custom tap-to-place path) ---
+  // Independent of model-viewer's canActivateAR, since model-viewer's ar-modes
+  // no longer includes "webxr" — this checks the raw browser capability that
+  // WebXRPlacementViewer needs directly.
+  useEffect(() => {
+    let cancelled = false;
+    if (!("xr" in navigator)) return;
+    (navigator as any).xr
+      .isSessionSupported("immersive-ar")
+      .then((supported: boolean) => {
+        if (!cancelled) setWebXrSupported(supported);
+      })
+      .catch(() => {
+        if (!cancelled) setWebXrSupported(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // --- AR status (active/inactive only) ---
+  // model-viewer's ar-modes no longer includes "webxr", so only Scene Viewer /
+  // Quick Look fullscreen transitions fire this now. The richer WebXR-only
+  // sub-states (object-placed, ar-tracking's not-tracking) can't occur
+  // through model-viewer anymore — those are handled by WebXRPlacementViewer
+  // instead, which talks to WebXR directly.
   useEffect(() => {
     const viewer = viewerRef.current as any;
     if (!viewer) return;
 
     const handleArStatus = (e: any) => {
       const status = e.detail?.status;
-      const sessionStarted = status === "session-started";
-      setArActive(sessionStarted);
-
+      setArActive(status === "session-started");
       if (status === "failed") {
         setArMessage("AR couldn't start on this device. Try a different browser or device.");
-        setArPlaced(false);
-      } else if (sessionStarted) {
-        // Fresh session: not placed yet, tracking assumed good until told otherwise.
+      } else if (status === "session-started") {
         setArMessage(null);
-        setArPlaced(false);
-        setArTracking(true);
-      } else if (status === "object-placed") {
-        setArPlaced(true);
-      } else if (status === "not-presenting") {
-        setArPlaced(false);
       }
     };
 
     viewer.addEventListener("ar-status", handleArStatus);
     return () => viewer.removeEventListener("ar-status", handleArStatus);
-  }, [scene]);
-
-  // --- AR tracking quality (drift / jitter / lost tracking) ---
-  useEffect(() => {
-    const viewer = viewerRef.current as any;
-    if (!viewer) return;
-
-    const handleArTracking = (e: any) => {
-      setArTracking(e.detail?.status !== "not-tracking");
-    };
-
-    viewer.addEventListener("ar-tracking", handleArTracking);
-    return () => viewer.removeEventListener("ar-tracking", handleArTracking);
   }, [scene]);
 
   // --- Model load progress / success / error ---
@@ -116,6 +127,19 @@ export function SceneViewer() {
     if (!id) return;
     setLoading(true);
     setError(null);
+
+    // Reset all AR/model UI state so a stale view from the previous scene
+    // doesn't flash while the new one loads (matters if this component stays
+    // mounted while navigating between dishes, e.g. via a carousel).
+    setArActive(false);
+    setArMessage(null);
+    setArSupported(true);
+    setModelLoading(true);
+    setModelError(false);
+    setModelProgress(0);
+    setImageTrackingActive(false);
+    setWebXrActive(false);
+
     fetch(`${API_URL}/api/scene/${id}/`, { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw new Error(`Request failed: ${r.status}`);
@@ -159,6 +183,27 @@ export function SceneViewer() {
       >
         {error || "Model not found."}
       </div>
+    );
+  }
+
+  // if (imageTrackingActive && scene.mind_target_url) {
+  //   return (
+  //     <ImageTrackingViewer
+  //       glbUrl={scene.glb_url}
+  //       mindTargetUrl={scene.mind_target_url}
+  //       name={scene.name}
+  //       onExit={() => setImageTrackingActive(false)}
+  //     />
+  //   );
+  // }
+
+  if (webXrActive) {
+    return (
+      <WebXRPlacementViewer
+        glbUrl={scene.glb_url}
+        name={scene.name}
+        onExit={() => setWebXrActive(false)}
+      />
     );
   }
 
@@ -262,15 +307,6 @@ export function SceneViewer() {
         </div>
       )}
 
-      {/*
-        NOTE: the two coaching overlays below (scanning + tracking-lost) only ever render
-        during a WebXR session. Native viewers (Android Scene Viewer, iOS Quick Look) are
-        separate OS-level apps — model-viewer's DOM/slots cannot reach into them at all.
-        Since ar-modes now prefers "scene-viewer quick-look webxr" for tracking stability,
-        most users on supported devices won't see these overlays — they'll see the native
-        viewer's own built-in scanning UI instead, which is normal and expected.
-      */}
-
       {/* AR status / error toast */}
       {arMessage && (
         <div
@@ -294,74 +330,81 @@ export function SceneViewer() {
         </div>
       )}
 
-      {/* Pre-placement scanning coach: shown once AR session starts, before the model is placed */}
-      {arActive && !arPlaced && arTracking && (
-        <div
+      {/*
+        Custom tap-to-place WebXR entry point. Independent of model-viewer's
+        AR button (which now only covers Scene Viewer / Quick Look, since
+        webxr was removed from ar-modes) — this is a separate, from-scratch
+        AR session with real reticle + tap placement. Shown whenever the
+        browser supports WebXR's immersive-ar + hit-test, regardless of
+        whether Scene Viewer/Quick Look is also available, since this gives
+        a meaningfully different (and arguably better) placement UX.
+      */}
+      {!arActive && !modelLoading && webXrSupported && (
+        <button
+          onClick={() => setWebXrActive(true)}
           style={{
             position: "absolute",
-            top: "18%",
+            bottom: arSupported ? "23%" : "10%",
             left: "50%",
             transform: "translateX(-50%)",
-            zIndex: 11,
-            background: "rgba(13,26,31,0.85)",
-            backdropFilter: "blur(8px)",
+            zIndex: 10,
+            background: "transparent",
+            color: T.accent,
             border: `1px solid ${T.border}`,
-            borderRadius: 14,
-            padding: "0.8rem 1.3rem",
-            fontSize: "0.85rem",
-            color: T.text,
-            maxWidth: "78%",
-            textAlign: "center",
+            borderRadius: 12,
+            padding: "0.6rem 1.6rem",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            cursor: "pointer",
             display: "flex",
-            flexDirection: "column",
             alignItems: "center",
-            gap: "0.4rem",
-            animation: "scenePulse 1.8s ease-in-out infinite",
+            gap: "0.5rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: T.accent }}>Slowly move your phone</span>
-          <span style={{ color: T.muted }}>
-            Pan it around a flat, textured surface (like a wood table) to help it find a place to anchor.
-          </span>
-        </div>
+          Tap to place (AR)
+        </button>
       )}
 
-      {/* Tracking-lost coach: shown any time tracking drops, even after placement */}
-      {arActive && !arTracking && (
-        <div
+      {/*
+        Standalone fallback trigger, rendered outside <model-viewer>'s AR-button
+        slot. model-viewer hides its slotted AR button entirely on devices with
+        no AR capability at all (no WebXR, no Scene Viewer, no Quick Look) — so
+        on e.g. desktop browsers or older phones, the slotted button below may
+        never appear, and this would be the only way to reach image tracking.
+        Only shown once we know AR support is unavailable, to avoid showing two
+        competing buttons on capable devices.
+      */}
+      {!arActive && !modelLoading && !arSupported && !webXrSupported && scene.mind_target_url && (
+        <button
+          onClick={() => setImageTrackingActive(true)}
           style={{
             position: "absolute",
-            top: "18%",
+            bottom: "10%",
             left: "50%",
             transform: "translateX(-50%)",
-            zIndex: 12,
-            background: "rgba(120,40,20,0.9)",
-            border: `1px solid ${T.border}`,
-            borderRadius: 14,
-            padding: "0.8rem 1.3rem",
-            fontSize: "0.85rem",
+            zIndex: 10,
+            background: T.primary,
             color: "#fff",
-            maxWidth: "78%",
-            textAlign: "center",
+            border: "none",
+            borderRadius: 12,
+            padding: "0.85rem 2.4rem",
+            fontSize: "1rem",
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
             display: "flex",
-            flexDirection: "column",
             alignItems: "center",
-            gap: "0.4rem",
+            gap: "0.5rem",
           }}
         >
-          <span style={{ fontWeight: 700 }}>Lost tracking</span>
-          <span style={{ opacity: 0.9 }}>
-            Move slowly and point your camera at a well-lit, detailed surface to recover.
-          </span>
-        </div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+          Scan to view in AR
+        </button>
       )}
-
-      <style>{`
-        @keyframes scenePulse {
-          0%, 100% { opacity: 0.85; }
-          50% { opacity: 1; }
-        }
-      `}</style>
 
 
       {/* @ts-ignore - model-viewer is a web component */}
@@ -379,11 +422,16 @@ export function SceneViewer() {
         camera-controls
         auto-rotate
         camera-orbit="0deg 75deg 105%"
+        min-camera-orbit="auto auto 60%"
+        max-camera-orbit="auto auto 200%"
+        min-field-of-view="12deg"
+        max-field-of-view="45deg"
         interaction-prompt="auto"
         interaction-prompt-style="basic"
         interaction-prompt-threshold="2000"
         shadow-intensity="1"
         environment-image="neutral"
+        tone-mapping="neutral"
         exposure="1"
         loading="eager"
         reveal="auto"
