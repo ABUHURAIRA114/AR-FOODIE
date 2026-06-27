@@ -38,26 +38,26 @@ export function UserRegisterPage() {
                     onChange={e => setAgreed(e.target.checked)}
                     style={{ marginTop: "3px", accentColor: T.primary, width: 15, height: 15, flexShrink: 0 }}
                 />
-                <span style={{ fontSize: "0.82rem", color: "#a0a0a0", lineHeight: 1.4 }}>
-    {"I agree to the "}
-    
-        href="/privacy-policy"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: T.primary, textDecoration: "underline" }}
-    >
-        Privacy Policy
-    </a>
-    {" and "}
-    
-        href="/terms"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: T.primary, textDecoration: "underline" }}
-    >
-        Terms of Service
-    </a>
-</span>
+                <span style={{ fontSize: "0.82rem", color: T.muted, lineHeight: 1.4 }}>
+                    {"I agree to the"}
+                    <a
+                        href="/privacy-policy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: T.primary, textDecoration: "underline" }}
+                    >
+                        Privacy Policy
+                    </a>
+                    {" and"}
+                    <a
+                        href="/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "0.82rem", color: "#a0a0a0", lineHeight: 1.4 }}
+                    >
+                        Terms of Service
+                    </a>
+                </span>
             </label>
 
             {error && <p style={{ color: "#f87171" }}>{error}</p>}
