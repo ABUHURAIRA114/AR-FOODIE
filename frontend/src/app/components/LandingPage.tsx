@@ -671,6 +671,155 @@ function PricingCard({ plan }: { plan: typeof plans[0] }) {
   );
 }
 
+// ── FEEDBACK ──────────────────────────────────────────────────────
+function FeedbackSection() {
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !message.trim()) return;
+    setLoading(true);
+
+    // WhatsApp fallback — sends feedback as a WhatsApp message to your number
+    const text = encodeURIComponent(`*Dinenics Feedback*\n\nName: ${name}\n\nMessage: ${message}`);
+    window.open(`https://wa.me/923119042553?text=${text}`, "_blank");
+
+    setSubmitted(true);
+    setLoading(false);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    background: "rgba(255,255,255,0.04)",
+    border: `1.5px solid ${T.border}`,
+    borderRadius: 10,
+    padding: "0.75rem 1rem",
+    color: T.text,
+    fontSize: "0.92rem",
+    outline: "none",
+    boxSizing: "border-box",
+    fontFamily: "inherit",
+    transition: "border-color 0.2s",
+  };
+
+  return (
+    <section style={{ background: T.bg, padding: "5rem 2rem" }}>
+      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+
+        {/* Heading */}
+        <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
+          <span style={{
+            background: `rgba(166,81,17,0.15)`,
+            color: T.primary,
+            fontSize: "0.78rem",
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            padding: "0.3rem 0.9rem",
+            borderRadius: 20,
+            textTransform: "uppercase",
+            display: "inline-block",
+            marginBottom: "1rem",
+          }}>
+            Feedback
+          </span>
+          <h2 style={{ fontSize: "2rem", fontWeight: 800, color: T.text, margin: "0 0 0.6rem" }}>
+            Share Your Thoughts
+          </h2>
+          <p style={{ color: T.muted, fontSize: "0.95rem" }}>
+            Got a suggestion or question? We'd love to hear from you.
+          </p>
+        </div>
+
+        {/* Card */}
+        <div style={{
+          background: "rgba(255,255,255,0.03)",
+          border: `1.5px solid ${T.border}`,
+          borderRadius: 16,
+          padding: "2rem",
+        }}>
+          {submitted ? (
+            <div style={{ textAlign: "center", padding: "2rem 0" }}>
+              <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🎉</div>
+              <h3 style={{ color: T.text, fontWeight: 700, marginBottom: "0.5rem" }}>Thanks for the feedback!</h3>
+              <p style={{ color: T.muted, fontSize: "0.9rem" }}>We'll get back to you on WhatsApp.</p>
+              <button
+                onClick={() => { setSubmitted(false); setName(""); setMessage(""); }}
+                style={{
+                  marginTop: "1.5rem",
+                  background: "transparent",
+                  border: `1.5px solid ${T.border}`,
+                  color: T.muted,
+                  borderRadius: 8,
+                  padding: "0.5rem 1.2rem",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                }}
+              >
+                Send another
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+              <div>
+                <label style={{ color: T.muted, fontSize: "0.82rem", display: "block", marginBottom: "0.4rem" }}>
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Ali Hassan"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  style={inputStyle}
+                  onFocus={e => e.currentTarget.style.borderColor = T.primary}
+                  onBlur={e => e.currentTarget.style.borderColor = T.border}
+                />
+              </div>
+              <div>
+                <label style={{ color: T.muted, fontSize: "0.82rem", display: "block", marginBottom: "0.4rem" }}>
+                  Message
+                </label>
+                <textarea
+                  placeholder="Your feedback, suggestion, or question..."
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  rows={4}
+                  style={{ ...inputStyle, resize: "vertical" }}
+                  onFocus={e => e.currentTarget.style.borderColor = T.primary}
+                  onBlur={e => e.currentTarget.style.borderColor = T.border}
+                />
+              </div>
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !name.trim() || !message.trim()}
+                style={{
+                  background: (!name.trim() || !message.trim()) ? "rgba(166,81,17,0.3)" : T.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "0.85rem",
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  cursor: (!name.trim() || !message.trim()) ? "not-allowed" : "pointer",
+                  transition: "background 0.2s, transform 0.2s",
+                  width: "100%",
+                }}
+                onMouseEnter={e => { if (name.trim() && message.trim()) e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
+              >
+                {loading ? "Sending..." : "Send Feedback via WhatsApp"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
+
 // ── FOOTER ────────────────────────────────────────────────────────
 function Footer() {
   return (
@@ -719,6 +868,7 @@ export function LandingPage() {
       <VideoSection />
       <ProblemSection />
       <Pricing />
+      <FeedbackSection />
       <Footer />
     </div>
   );
