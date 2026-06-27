@@ -2,7 +2,7 @@ import { T } from "./tokens.mts";
 
 export function PrivacyPolicyPage() {
     return (
-        <div style={{ background: T.bg, minHeight: "100vh", padding: "3rem 2rem" }}>
+        <div style={{ background: T.text, minHeight: "100vh", padding: "3rem 2rem" }}>
             <div style={{ maxWidth: 800, margin: "0 auto", color: T.text }}>
                 <div dangerouslySetInnerHTML={{ __html: privacyPolicyHTML }} />
             </div>
@@ -17,7 +17,7 @@ const privacyPolicyHTML = `<style>
 [data-custom-class='title'], [data-custom-class='title'] * {
           font-family: Arial !important;
 font-size: 26px !important;
-color: #000000 !important;
+color: #010f8a !important;
         }
 [data-custom-class='subtitle'], [data-custom-class='subtitle'] * {
           font-family: Arial !important;

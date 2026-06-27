@@ -673,62 +673,51 @@ function PricingCard({ plan }: { plan: typeof plans[0] }) {
 
 // ── FEEDBACK ──────────────────────────────────────────────────────
 function FeedbackSection() {
-  const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = React.useState("");
+  const [status, setStatus] = React.useState<"idle" | "loading" | "success" | "error">("idle");
 
   const handleSubmit = async () => {
-    if (!name.trim() || !message.trim()) return;
-    setLoading(true);
-
-    // WhatsApp fallback — sends feedback as a WhatsApp message to your number
-    const text = encodeURIComponent(`*Dinenics Feedback*\n\nName: ${name}\n\nMessage: ${message}`);
-    window.open(`https://wa.me/923119042553?text=${text}`, "_blank");
-
-    setSubmitted(true);
-    setLoading(false);
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "rgba(255,255,255,0.04)",
-    border: `1.5px solid ${T.border}`,
-    borderRadius: 10,
-    padding: "0.75rem 1rem",
-    color: T.text,
-    fontSize: "0.92rem",
-    outline: "none",
-    boxSizing: "border-box",
-    fontFamily: "inherit",
-    transition: "border-color 0.2s",
+    if (!message.trim()) return;
+    setStatus("loading");
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) throw new Error();
+      setStatus("success");
+      setMessage("");
+    } catch {
+      setStatus("error");
+    }
   };
 
   return (
     <section style={{ background: T.bg, padding: "5rem 2rem" }}>
-      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+      <div style={{ maxWidth: 580, margin: "0 auto" }}>
 
         {/* Heading */}
         <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
           <span style={{
-            background: `rgba(166,81,17,0.15)`,
+            background: "rgba(166,81,17,0.15)",
             color: T.primary,
-            fontSize: "0.78rem",
+            fontSize: "0.75rem",
             fontWeight: 700,
-            letterSpacing: "0.1em",
-            padding: "0.3rem 0.9rem",
+            letterSpacing: "0.12em",
+            padding: "0.3rem 1rem",
             borderRadius: 20,
-            textTransform: "uppercase",
+            textTransform: "uppercase" as const,
             display: "inline-block",
             marginBottom: "1rem",
           }}>
             Feedback
           </span>
-          <h2 style={{ fontSize: "2rem", fontWeight: 800, color: T.text, margin: "0 0 0.6rem" }}>
+          <h2 style={{ fontSize: "2rem", fontWeight: 800, color: T.text, margin: "0 0 0.5rem" }}>
             Share Your Thoughts
           </h2>
-          <p style={{ color: T.muted, fontSize: "0.95rem" }}>
-            Got a suggestion or question? We'd love to hear from you.
+          <p style={{ color: "#a0a0a0", fontSize: "0.92rem", margin: 0 }}>
+            Anonymous. Honest. We read every message.
           </p>
         </div>
 
@@ -736,23 +725,25 @@ function FeedbackSection() {
         <div style={{
           background: "rgba(255,255,255,0.03)",
           border: `1.5px solid ${T.border}`,
-          borderRadius: 16,
+          borderRadius: 18,
           padding: "2rem",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
         }}>
-          {submitted ? (
+          {status === "success" ? (
             <div style={{ textAlign: "center", padding: "2rem 0" }}>
-              <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🎉</div>
-              <h3 style={{ color: T.text, fontWeight: 700, marginBottom: "0.5rem" }}>Thanks for the feedback!</h3>
-              <p style={{ color: T.muted, fontSize: "0.9rem" }}>We'll get back to you on WhatsApp.</p>
+              <div style={{ fontSize: "2.8rem", marginBottom: "1rem" }}>🎉</div>
+              <h3 style={{ color: T.text, fontWeight: 700, margin: "0 0 0.4rem" }}>Thanks!</h3>
+              <p style={{ color: "#a0a0a0", fontSize: "0.9rem", margin: "0 0 1.5rem" }}>
+                Your feedback helps us improve.
+              </p>
               <button
-                onClick={() => { setSubmitted(false); setName(""); setMessage(""); }}
+                onClick={() => setStatus("idle")}
                 style={{
-                  marginTop: "1.5rem",
                   background: "transparent",
                   border: `1.5px solid ${T.border}`,
-                  color: T.muted,
+                  color: "#a0a0a0",
                   borderRadius: 8,
-                  padding: "0.5rem 1.2rem",
+                  padding: "0.45rem 1.2rem",
                   cursor: "pointer",
                   fontSize: "0.85rem",
                 }}
@@ -761,55 +752,66 @@ function FeedbackSection() {
               </button>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
-              <div>
-                <label style={{ color: T.muted, fontSize: "0.82rem", display: "block", marginBottom: "0.4rem" }}>
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ali Hassan"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  style={inputStyle}
-                  onFocus={e => e.currentTarget.style.borderColor = T.primary}
-                  onBlur={e => e.currentTarget.style.borderColor = T.border}
-                />
-              </div>
-              <div>
-                <label style={{ color: T.muted, fontSize: "0.82rem", display: "block", marginBottom: "0.4rem" }}>
-                  Message
-                </label>
-                <textarea
-                  placeholder="Your feedback, suggestion, or question..."
-                  value={message}
-                  onChange={e => setMessage(e.target.value)}
-                  rows={4}
-                  style={{ ...inputStyle, resize: "vertical" }}
-                  onFocus={e => e.currentTarget.style.borderColor = T.primary}
-                  onBlur={e => e.currentTarget.style.borderColor = T.border}
-                />
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <textarea
+                placeholder="What's on your mind? Be honest, it's anonymous."
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                rows={5}
+                style={{
+                  width: "100%",
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1.5px solid ${T.border}`,
+                  borderRadius: 12,
+                  padding: "0.9rem 1rem",
+                  color: T.text,
+                  fontSize: "0.92rem",
+                  outline: "none",
+                  resize: "vertical",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box" as const,
+                  transition: "border-color 0.2s",
+                  lineHeight: 1.6,
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = T.primary}
+                onBlur={e => e.currentTarget.style.borderColor = T.border}
+              />
+
+              {status === "error" && (
+                <p style={{ color: "#f87171", fontSize: "0.85rem", margin: 0 }}>
+                  Something went wrong. Please try again.
+                </p>
+              )}
+
               <button
                 onClick={handleSubmit}
-                disabled={loading || !name.trim() || !message.trim()}
+                disabled={status === "loading" || !message.trim()}
                 style={{
-                  background: (!name.trim() || !message.trim()) ? "rgba(166,81,17,0.3)" : T.primary,
+                  background: (!message.trim() || status === "loading")
+                    ? "rgba(166,81,17,0.3)"
+                    : T.primary,
                   color: "#fff",
                   border: "none",
                   borderRadius: 10,
                   padding: "0.85rem",
                   fontSize: "0.95rem",
                   fontWeight: 700,
-                  cursor: (!name.trim() || !message.trim()) ? "not-allowed" : "pointer",
+                  cursor: (!message.trim() || status === "loading") ? "not-allowed" : "pointer",
                   transition: "background 0.2s, transform 0.2s",
                   width: "100%",
                 }}
-                onMouseEnter={e => { if (name.trim() && message.trim()) e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseEnter={e => {
+                  if (message.trim() && status !== "loading")
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                }}
                 onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
               >
-                {loading ? "Sending..." : "Send Feedback via WhatsApp"}
+                {status === "loading" ? "Sending..." : "Submit Anonymously"}
               </button>
+
+              <p style={{ color: "#a0a0a0", fontSize: "0.75rem", textAlign: "center", margin: 0 }}>
+                No name, no email — completely anonymous
+              </p>
             </div>
           )}
         </div>
