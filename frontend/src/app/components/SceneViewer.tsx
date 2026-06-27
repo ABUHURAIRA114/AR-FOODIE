@@ -97,7 +97,7 @@ export function SceneViewer() {
         ios-src={scene.usdz_url}
         alt={scene.name}
         ar
-        ar-modes="webxr scene-viewer quick-look"
+        ar-modes="scene-viewer quick-look"
         camera-controls
         auto-rotate
         shadow-intensity="1"
