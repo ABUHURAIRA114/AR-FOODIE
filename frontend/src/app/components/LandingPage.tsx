@@ -673,8 +673,8 @@ function PricingCard({ plan }: { plan: typeof plans[0] }) {
 
 // ── FEEDBACK ──────────────────────────────────────────────────────
 function FeedbackSection() {
-  const [message, setMessage] = React.useState("");
-  const [status, setStatus] = React.useState<"idle" | "loading" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const handleSubmit = async () => {
     if (!message.trim()) return;
