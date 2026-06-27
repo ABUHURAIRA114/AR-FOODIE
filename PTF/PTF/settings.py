@@ -102,7 +102,7 @@ USE_TZ = True
 
 # Static files — whitenoise serves them in production
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, '../frontend/dist/assets')]
+STATICFILES_DIRS = [] # since we are using Vite, we don't have a static directory in the Django app
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 

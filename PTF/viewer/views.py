@@ -1,9 +1,9 @@
-from .models import Scene
+from .models import Scene,Feedback
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_POST
 import json
 from django.contrib.auth import authenticate, login, logout
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie,csrf_exempt
 from django.middleware.csrf import get_token
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
@@ -153,3 +153,19 @@ def user_register_view(request):
         return JsonResponse({'error': 'Username already exists.'}, status=400)
     user = User.objects.create_user(username=username, password=password)
     return JsonResponse({'success': True, 'username': user.username})
+
+
+
+@csrf_exempt
+def submit_feedback(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            message = data.get("message", "").strip()
+            if not message:
+                return JsonResponse({"error": "Message is required"}, status=400)
+            Feedback.objects.create(message=message)
+            return JsonResponse({"ok": True}, status=201)
+        except Exception:
+            return JsonResponse({"error": "Server error"}, status=500)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
