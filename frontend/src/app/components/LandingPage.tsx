@@ -806,7 +806,7 @@ function FeedbackSection() {
                 }}
                 onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
               >
-                {status === "loading" ? "Sending..." : "Submit Anonymously"}
+                {status === "loading" ? "Sending..." : "Submit"}
               </button>
 
               <p style={{ color: "#a0a0a0", fontSize: "0.75rem", textAlign: "center", margin: 0 }}>
