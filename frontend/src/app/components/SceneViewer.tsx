@@ -23,6 +23,8 @@ export function SceneViewer() {
   const [arActive, setArActive] = useState(false);
   const [arSupported, setArSupported] = useState(true);
   const [arMessage, setArMessage] = useState<string | null>(null);
+  const [arTracking, setArTracking] = useState(true);
+  const [arPlaced, setArPlaced] = useState(false);
 
   const [modelLoading, setModelLoading] = useState(true);
   const [modelError, setModelError] = useState(false);
@@ -37,17 +39,39 @@ export function SceneViewer() {
 
     const handleArStatus = (e: any) => {
       const status = e.detail?.status;
-      setArActive(status === "session-started");
+      const sessionStarted = status === "session-started";
+      setArActive(sessionStarted);
 
       if (status === "failed") {
         setArMessage("AR couldn't start on this device. Try a different browser or device.");
-      } else if (status === "session-started") {
+        setArPlaced(false);
+      } else if (sessionStarted) {
+        // Fresh session: not placed yet, tracking assumed good until told otherwise.
         setArMessage(null);
+        setArPlaced(false);
+        setArTracking(true);
+      } else if (status === "object-placed") {
+        setArPlaced(true);
+      } else if (status === "not-presenting") {
+        setArPlaced(false);
       }
     };
 
     viewer.addEventListener("ar-status", handleArStatus);
     return () => viewer.removeEventListener("ar-status", handleArStatus);
+  }, [scene]);
+
+  // --- AR tracking quality (drift / jitter / lost tracking) ---
+  useEffect(() => {
+    const viewer = viewerRef.current as any;
+    if (!viewer) return;
+
+    const handleArTracking = (e: any) => {
+      setArTracking(e.detail?.status !== "not-tracking");
+    };
+
+    viewer.addEventListener("ar-tracking", handleArTracking);
+    return () => viewer.removeEventListener("ar-tracking", handleArTracking);
   }, [scene]);
 
   // --- Model load progress / success / error ---
@@ -261,6 +285,76 @@ export function SceneViewer() {
         </div>
       )}
 
+      {/* Pre-placement scanning coach: shown once AR session starts, before the model is placed */}
+      {arActive && !arPlaced && arTracking && (
+        <div
+          style={{
+            position: "absolute",
+            top: "18%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 11,
+            background: "rgba(13,26,31,0.85)",
+            backdropFilter: "blur(8px)",
+            border: `1px solid ${T.border}`,
+            borderRadius: 14,
+            padding: "0.8rem 1.3rem",
+            fontSize: "0.85rem",
+            color: T.text,
+            maxWidth: "78%",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "0.4rem",
+            animation: "scenePulse 1.8s ease-in-out infinite",
+          }}
+        >
+          <span style={{ fontWeight: 700, color: T.accent }}>Slowly move your phone</span>
+          <span style={{ color: T.muted }}>
+            Pan it around a flat, textured surface (like a wood table) to help it find a place to anchor.
+          </span>
+        </div>
+      )}
+
+      {/* Tracking-lost coach: shown any time tracking drops, even after placement */}
+      {arActive && !arTracking && (
+        <div
+          style={{
+            position: "absolute",
+            top: "18%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 12,
+            background: "rgba(120,40,20,0.9)",
+            border: `1px solid ${T.border}`,
+            borderRadius: 14,
+            padding: "0.8rem 1.3rem",
+            fontSize: "0.85rem",
+            color: "#fff",
+            maxWidth: "78%",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "0.4rem",
+          }}
+        >
+          <span style={{ fontWeight: 700 }}>Lost tracking</span>
+          <span style={{ opacity: 0.9 }}>
+            Move slowly and point your camera at a well-lit, detailed surface to recover.
+          </span>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes scenePulse {
+          0%, 100% { opacity: 0.85; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+
+
       {/* @ts-ignore - model-viewer is a web component */}
       <model-viewer
         ref={viewerRef}
@@ -269,7 +363,8 @@ export function SceneViewer() {
         ios-src={scene.usdz_url}
         alt={scene.name}
         ar
-        ar-modes="webxr scene-viewer quick-look"
+        ar-modes="scene-viewer quick-look webxr"
+        xr-environment
         ar-scale="fixed"
         ar-placement="floor"
         camera-controls
