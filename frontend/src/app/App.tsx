@@ -6,6 +6,8 @@ import { AdminLoginPage } from "./components/AdminLoginPage";
 import { UserLoginPage } from "./components/UserLoginPage";
 import { UserRegisterPage } from "./components/UserRegisterPage";
 import { SceneViewer } from "./components/SceneViewer";
+import { PrivacyPolicyPage } from "./components/PrivacyPolicyPage";
+// import { TermsPage } from "./components/TermsPage";
 
 export default function App() {
   return (
@@ -20,7 +22,7 @@ export default function App() {
         <Route path="/user-register" element={<UserRegisterPage />} />
         <Route path= "/user-logout" element={<UserLoginPage />} />
         <Route path= "/privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path= "/terms" element={<TermsPage />} />
+        {/* <Route path= "/terms" element={<TermsPage />} /> */}
       </Routes>
     </BrowserRouter>
   );
