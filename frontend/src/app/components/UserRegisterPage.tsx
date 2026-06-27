@@ -40,7 +40,7 @@ export function UserRegisterPage() {
                 />
                 <span style={{ fontSize: "0.82rem", color: T.muted, lineHeight: 1.4 }}>
                     {"I agree to the"}
-                    
+                    <a
                         href="/privacy-policy"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -49,7 +49,7 @@ export function UserRegisterPage() {
                         Privacy Policy
                     </a>
                     {" and"}
-                    
+                    <a
                         href="/terms"
                         target="_blank"
                         rel="noopener noreferrer"
