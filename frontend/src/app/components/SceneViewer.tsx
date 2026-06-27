@@ -262,6 +262,15 @@ export function SceneViewer() {
         </div>
       )}
 
+      {/*
+        NOTE: the two coaching overlays below (scanning + tracking-lost) only ever render
+        during a WebXR session. Native viewers (Android Scene Viewer, iOS Quick Look) are
+        separate OS-level apps — model-viewer's DOM/slots cannot reach into them at all.
+        Since ar-modes now prefers "scene-viewer quick-look webxr" for tracking stability,
+        most users on supported devices won't see these overlays — they'll see the native
+        viewer's own built-in scanning UI instead, which is normal and expected.
+      */}
+
       {/* AR status / error toast */}
       {arMessage && (
         <div
@@ -363,13 +372,17 @@ export function SceneViewer() {
         ios-src={scene.usdz_url}
         alt={scene.name}
         ar
-        ar-modes="webxr scene-viewer quick-look"
+        ar-modes="scene-viewer quick-look"
+        quick-look-browsers="safari chrome firefox"
         xr-environment
         ar-scale="fixed"
         ar-placement="floor"
         camera-controls
         auto-rotate
         camera-orbit="0deg 75deg 105%"
+        interaction-prompt="auto"
+        interaction-prompt-style="basic"
+        interaction-prompt-threshold="2000"
         shadow-intensity="1"
         environment-image="neutral"
         exposure="1"
