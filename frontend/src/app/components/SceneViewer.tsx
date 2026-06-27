@@ -363,7 +363,7 @@ export function SceneViewer() {
         ios-src={scene.usdz_url}
         alt={scene.name}
         ar
-        ar-modes="scene-viewer quick-look webxr"
+        ar-modes="webxr scene-viewer quick-look"
         xr-environment
         ar-scale="fixed"
         ar-placement="floor"
