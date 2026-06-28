@@ -824,41 +824,182 @@ function FeedbackSection() {
 
 // ── FOOTER ────────────────────────────────────────────────────────
 function Footer() {
+  const contacts = [
+    {
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.549 4.107 1.51 5.833L.057 23.215a.75.75 0 0 0 .921.921l5.382-1.453A11.951 11.951 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.907 0-3.7-.512-5.24-1.406l-.374-.217-3.894 1.052 1.052-3.894-.217-.374A9.953 9.953 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+        </svg>
+      ),
+      label: "+92 311 9042553",
+      href: "https://wa.me/923119042553",
+    },
+    {
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.549 4.107 1.51 5.833L.057 23.215a.75.75 0 0 0 .921.921l5.382-1.453A11.951 11.951 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.907 0-3.7-.512-5.24-1.406l-.374-.217-3.894 1.052 1.052-3.894-.217-.374A9.953 9.953 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+        </svg>
+      ),
+      label: "+92 313 5418240",
+      href: "https://wa.me/923135418240",
+    },
+    {
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+        </svg>
+      ),
+      label: "dinenics@gmail.com",
+      href: "mailto:dinenics@gmail.com",
+    },
+    {
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+        </svg>
+      ),
+      label: "@dinenics",
+      href: "https://instagram.com/dinenics",
+    },
+    {
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+        </svg>
+      ),
+      label: "Dinenics",
+      href: "https://linkedin.com/company/dinenics",
+    },
+    {
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.91-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      ),
+      label: "@dinenics",
+      href: "https://x.com/dinenics",
+    },
+  ];
+
   return (
-    <footer style={{ background: T.bg, borderTop: `1px solid ${T.border}`, padding: "3rem 2rem" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: "2rem" }}>
-        <div>
-          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: T.accent, marginBottom: "0.3rem" }}>Dinenics</div>
-          <p style={{ color: T.muted, fontSize: "0.88rem", marginBottom: "0.6rem" }}>Bringing Pakistani food to life</p>
-          <a href="https://wa.me/923119042553" style={{ color: T.primary, textDecoration: "none", fontSize: "0.88rem" }}>
-            +92 311 9042553
-          </a>
-          <a href="https://wa.me/923135418240" target="_blank" rel="noopener noreferrer" style={{ color: T.primary, textDecoration: "none", fontSize: "0.88rem", display: "block", marginTop: "0.4rem" }}>
-            +92 313 5418240
-          </a>
+    <footer style={{ background: T.bg, borderTop: `1px solid ${T.border}`, padding: "4rem 2rem 2rem" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+
+        {/* Top row */}
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: "3rem", marginBottom: "3rem" }}>
+
+          {/* Brand */}
+          <div style={{ maxWidth: 260 }}>
+            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: T.accent, marginBottom: "0.4rem" }}>Dinenics</div>
+            <p style={{ color: "#a0a0a0", fontSize: "0.88rem", lineHeight: 1.6, margin: "0 0 1.5rem" }}>
+              Bringing Pakistani food to life through augmented reality.
+            </p>
+            {/* Contact list */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+              {contacts.map(({ icon, label, href }) => (
+               <a 
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    color: "#a0a0a0",
+                    textDecoration: "none",
+                    fontSize: "0.85rem",
+                    transition: "color 0.2s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = T.primary)}
+                  onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
+                >
+                  <span style={{ opacity: 0.7, flexShrink: 0 }}>{icon}</span>
+                  {label}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Nav links */}
+          <div>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a0a0a0", marginBottom: "1rem" }}>
+              Navigation
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+              {[["#hero", "Home"], ["#how", "How It Works"], ["#pricing", "Pricing"]].map(([href, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  style={{ color: "#a0a0a0", textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+                  onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
+                >
+                  {label}
+                </a>c
+              ))}
+              <Link
+                to="/ar-viewer"
+                style={{ color: "#a0a0a0", textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+                onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
+              >
+                View Demo
+              </Link>
+            </div>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a0a0a0", marginBottom: "1rem" }}>
+              Legal
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+              <Link
+                to="/privacy-policy"
+                style={{ color: "#a0a0a0", textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+                onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                to="/terms"
+                style={{ color: "#a0a0a0", textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+                onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
+              >
+                Terms of Service
+              </Link>
+            </div>
+          </div>
+
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", alignItems: "center" }}>
-          {[["#hero", "Home"], ["#how", "How It Works"], ["#pricing", "Pricing"]].map(([href, label]) => (
-            <a key={href} href={href} style={{ color: T.muted, textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = T.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-              {label}
-            </a>
-          ))}
-          <Link to="/ar-viewer" style={{ color: T.muted, textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
-            onMouseEnter={e => (e.currentTarget.style.color = T.text)}
-            onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-            View Demo
-          </Link>
+
+        {/* Bottom bar */}
+        <div style={{
+          paddingTop: "1.5rem",
+          borderTop: "1px solid rgba(255,255,255,0.05)",
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "1rem",
+        }}>
+          <span style={{ color: "rgba(133,170,170,0.45)", fontSize: "0.78rem" }}>
+            © 2026 Dinenics. All rights reserved.
+          </span>
+          <span style={{ color: "rgba(133,170,170,0.3)", fontSize: "0.75rem" }}>
+            Made in Pakistan 🇵🇰
+          </span>
         </div>
-      </div>
-      <div style={{ maxWidth: 1100, margin: "2rem auto 0", paddingTop: "1.5rem", borderTop: "1px solid rgba(255,255,255,0.05)", textAlign: "center", color: "rgba(133,170,170,0.45)", fontSize: "0.78rem" }}>
-        © 2026 Dinenics. All rights reserved.
+
       </div>
     </footer>
   );
 }
-
 // ── PAGE ──────────────────────────────────────────────────────────
 export function LandingPage() {
 
