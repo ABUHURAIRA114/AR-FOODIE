@@ -16,15 +16,27 @@ import { T } from "./tokens.mts";
  *
  * Flow:
  *   1. Request an 'immersive-ar' session with 'hit-test' required and
- *      'dom-overlay' optional.
- *   2. Each frame, run a hit test from the 'viewer' reference space and move
- *      a reticle to the first result's pose, rendered in the 'local'
- *      reference space.
+ *      'dom-overlay' + 'plane-detection' optional.
+ *   2. Each frame, sync detected XRPlanes to translucent green meshes so the
+ *      user can see what's been scanned so far (plane-detection is additive
+ *      to hit-test — it doesn't speed up ARCore's own scan, but it surfaces
+ *      progress sooner, since planes often appear before a clean hit-test
+ *      result does). Also run a hit test from the 'viewer' reference space
+ *      and move a reticle to the first result's pose, rendered in the
+ *      'local' reference space.
  *   3. On a WebXR 'select' event (the user's tap), place the model at the
  *      reticle's current pose and stop moving it — this is the explicit
  *      "tap to place" step model-viewer doesn't offer.
  *   4. After placement, the user can tap again to re-place, matching the
- *      common "tap elsewhere to move it" pattern.
+ *      common "tap elsewhere to move it" pattern. Plane visualization fades
+ *      out once placed, to declutter the view.
+ *
+ * Note on speed: the actual scan/tracking speed is governed by ARCore's own
+ * SLAM pipeline, which this component only reads from each frame — there's
+ * no parameter here that makes the underlying scan itself faster. What this
+ * does improve is *perceived* speed and clarity, by showing scan progress
+ * (detected planes) as soon as it exists, rather than leaving the user
+ * staring at a blank camera feed with no feedback until a hit-test succeeds.
  *
  * Requires:
  *  - HTTPS (a secure context, same requirement as model-viewer's WebXR path)
@@ -99,7 +111,7 @@ export function WebXRPlacementViewer({
 
       const sessionInit: any = {
         requiredFeatures: ["local", "hit-test"],
-        optionalFeatures: ["dom-overlay"],
+        optionalFeatures: ["dom-overlay", "plane-detection"],
       };
       if (overlayRef.current) {
         sessionInit.domOverlay = { root: overlayRef.current };
@@ -151,6 +163,68 @@ export function WebXRPlacementViewer({
     reticle.visible = false;
     scene.add(reticle);
 
+    // Detected-plane visualization: one semi-transparent mesh per XRPlane,
+    // rebuilt whenever its polygon changes. This is what actually shows the
+    // user "the environment as it's scanned" — distinct from the reticle,
+    // which only shows where the model *would* go. Planes typically appear
+    // faster than a clean hit-test result does, so this also gives earlier
+    // visual feedback that scanning is working.
+    const planeMeshes = new Map<XRPlane, THREE.Mesh>();
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4ade80,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide,
+    });
+
+    function buildPlaneGeometry(plane: XRPlane): THREE.BufferGeometry {
+      const points = plane.polygon; // array of {x, y, z}, in plane-local space (y ~ 0)
+      const shape = new THREE.Shape(points.map((p: any) => new THREE.Vector2(p.x, p.z)));
+      const geometry = new THREE.ShapeGeometry(shape);
+      // ShapeGeometry is built in the XY plane; rotate it flat to match the
+      // detected plane's own local XZ orientation before applying its pose.
+      geometry.rotateX(-Math.PI / 2);
+      return geometry;
+    }
+
+    function syncPlaneMeshes(frame: any, localSpace: XRReferenceSpace) {
+      const detectedPlanes: Set<XRPlane> | undefined = frame.detectedPlanes;
+      if (!detectedPlanes) return; // plane-detection wasn't granted — silently skip
+
+      // Remove meshes for planes no longer detected.
+      for (const [plane, mesh] of planeMeshes) {
+        if (!detectedPlanes.has(plane)) {
+          scene.remove(mesh);
+          mesh.geometry.dispose();
+          planeMeshes.delete(plane);
+        }
+      }
+
+      // Add/update meshes for currently detected planes.
+      for (const plane of detectedPlanes) {
+        const pose = frame.getPose(plane.planeSpace, localSpace);
+        if (!pose) continue;
+
+        let mesh = planeMeshes.get(plane);
+        const lastChanged = (plane as any).lastChangedTime;
+
+        if (!mesh) {
+          mesh = new THREE.Mesh(buildPlaneGeometry(plane), planeMaterial);
+          mesh.matrixAutoUpdate = false;
+          (mesh as any)._lastChangedTime = lastChanged;
+          planeMeshes.set(plane, mesh);
+          scene.add(mesh);
+        } else if ((mesh as any)._lastChangedTime !== lastChanged) {
+          // Polygon geometry changed (plane grew/merged) — rebuild it.
+          mesh.geometry.dispose();
+          mesh.geometry = buildPlaneGeometry(plane);
+          (mesh as any)._lastChangedTime = lastChanged;
+        }
+
+        mesh.matrix.fromArray(pose.transform.matrix);
+      }
+    }
+
     let placedModel: THREE.Object3D | null = null;
 
     // Load the GLB once, up front, so tapping to place is instant.
@@ -196,6 +270,12 @@ export function WebXRPlacementViewer({
       session.removeEventListener("select", onSelect);
       hitTestSource?.cancel?.();
       renderer.setAnimationLoop(null);
+      for (const mesh of planeMeshes.values()) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
+      planeMeshes.clear();
+      planeMaterial.dispose();
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -210,6 +290,11 @@ export function WebXRPlacementViewer({
 
       const viewerPose = frame.getViewerPose(localSpace);
       reticle.visible = false;
+
+      syncPlaneMeshes(frame, localSpace);
+      for (const mesh of planeMeshes.values()) {
+        mesh.visible = !placedModel;
+      }
 
       if (hitTestSource && viewerPose) {
         const hitTestResults = frame.getHitTestResults(hitTestSource);
@@ -307,7 +392,7 @@ export function WebXRPlacementViewer({
           <div style={coachStyle}>
             <span style={{ fontWeight: 700, color: T.accent }}>Move your phone slowly</span>
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
-              Pan across a flat, textured surface, then tap to place.
+              Green highlights show surfaces found so far — tap one to place.
             </span>
           </div>
         )}

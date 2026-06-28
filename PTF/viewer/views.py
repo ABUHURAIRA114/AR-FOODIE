@@ -142,6 +142,7 @@ def user_me_view(request):
     if request.user.is_authenticated:
         return JsonResponse({'is_user': True, 'username': request.user.username})
     return JsonResponse({'is_user': False})
+
 @require_POST
 def user_register_view(request):
     data = json.loads(request.body)
@@ -152,9 +153,8 @@ def user_register_view(request):
     if User.objects.filter(username=username).exists():
         return JsonResponse({'error': 'Username already exists.'}, status=400)
     user = User.objects.create_user(username=username, password=password)
+    login(request, user)
     return JsonResponse({'success': True, 'username': user.username})
-
-
 
 @csrf_exempt
 def submit_feedback(request):

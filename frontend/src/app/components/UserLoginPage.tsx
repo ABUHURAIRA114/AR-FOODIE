@@ -31,6 +31,13 @@ export function UserLoginPage() {
                 <button type="submit" style={{ background: T.primary, color: "#fff", border: "none", borderRadius: 8, padding: "0.7rem", cursor: "pointer", fontWeight: 700 }}>
                     Log In
                 </button>
+                <p style={{ textAlign: "center", fontSize: "0.85rem", color: T.muted, margin: 0 }}>
+                    Don't have an account?{" "}
+                    <button type="button" onClick={() => navigate("/user-register")}
+                        style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", fontSize: "0.85rem", padding: 0, fontWeight: 600 }}>
+                        Register
+                    </button>
+                </p>
             </form>
         </div>
     );
