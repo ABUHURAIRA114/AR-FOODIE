@@ -938,7 +938,7 @@ function Footer() {
                   onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
                 >
                   {label}
-                </a>c
+                </a>
               ))}
               <Link
                 to="/ar-viewer"
