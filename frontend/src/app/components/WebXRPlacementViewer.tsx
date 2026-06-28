@@ -1,0 +1,416 @@
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { T } from "./tokens.mts";
+
+/**
+ * WebXRPlacementViewer
+ * ---------------------------------------------------------------------------
+ * A from-scratch WebXR AR session using the Hit Test API directly, giving a
+ * true "reticle + tap to place" flow — distinct from <model-viewer>'s AR,
+ * which auto-places the model the instant a surface is found and only lets
+ * the user drag to adjust afterward. model-viewer does not expose a hook to
+ * intercept that and wait for an explicit tap (confirmed: no public API for
+ * this — see github.com/google/model-viewer/discussions/4272), so this
+ * bypasses model-viewer's AR system entirely and talks to WebXR directly.
+ *
+ * Flow:
+ *   1. Request an 'immersive-ar' session with 'hit-test' required and
+ *      'dom-overlay' optional.
+ *   2. Each frame, run a hit test from the 'viewer' reference space and move
+ *      a reticle to the first result's pose, rendered in the 'local'
+ *      reference space.
+ *   3. On a WebXR 'select' event (the user's tap), place the model at the
+ *      reticle's current pose and stop moving it — this is the explicit
+ *      "tap to place" step model-viewer doesn't offer.
+ *   4. After placement, the user can tap again to re-place, matching the
+ *      common "tap elsewhere to move it" pattern.
+ *
+ * Requires:
+ *  - HTTPS (a secure context, same requirement as model-viewer's WebXR path)
+ *  - A WebXR-capable browser (effectively Chrome on Android with ARCore;
+ *    iOS Safari does not support the WebXR Device API for AR as of this
+ *    writing — verify current support before relying on this as iOS's
+ *    primary path)
+ */
+
+interface WebXRPlacementViewerProps {
+  glbUrl: string;
+  name: string;
+  onExit?: () => void;
+  /** Uniform scale applied to the loaded model. Defaults to 1 (real-world scale). */
+  modelScale?: number;
+}
+
+type SessionPhase =
+  | "checking-support"
+  | "unsupported"
+  | "idle"
+  | "requesting"
+  | "denied"
+  | "active-searching"
+  | "active-placed"
+  | "error";
+
+export function WebXRPlacementViewer({
+  glbUrl,
+  name,
+  onExit,
+  modelScale = 1,
+}: WebXRPlacementViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef<XRSession | null>(null);
+  const [phase, setPhase] = useState<SessionPhase>("checking-support");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [domOverlaySupported, setDomOverlaySupported] = useState(true);
+
+  // --- Feature-detect WebXR + hit-test support up front ---
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkSupport() {
+      if (!("xr" in navigator)) {
+        if (!cancelled) setPhase("unsupported");
+        return;
+      }
+      try {
+        const supported = await (navigator as any).xr.isSessionSupported("immersive-ar");
+        if (cancelled) return;
+        setPhase(supported ? "idle" : "unsupported");
+      } catch {
+        if (!cancelled) setPhase("unsupported");
+      }
+    }
+
+    checkSupport();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function startSession() {
+    if (!containerRef.current) return;
+    setPhase("requesting");
+    setErrorMessage(null);
+
+    try {
+      const xr = (navigator as any).xr;
+
+      const sessionInit: any = {
+        requiredFeatures: ["local", "hit-test"],
+        optionalFeatures: ["dom-overlay"],
+      };
+      if (overlayRef.current) {
+        sessionInit.domOverlay = { root: overlayRef.current };
+      }
+
+      const session: XRSession = await xr.requestSession("immersive-ar", sessionInit);
+      sessionRef.current = session;
+
+      // dom-overlay was optional — if it didn't activate, domOverlayState will
+      // be absent and our coaching UI won't be visible during the session.
+      setDomOverlaySupported(Boolean((session as any).domOverlayState));
+
+      await runArSession(session);
+    } catch (err: any) {
+      if (err?.name === "NotAllowedError") {
+        setPhase("denied");
+      } else {
+        setPhase("error");
+        setErrorMessage("Couldn't start AR on this device.");
+      }
+    }
+  }
+
+  async function runArSession(session: XRSession) {
+    const container = containerRef.current!;
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+
+    // Basic lighting — there's no light estimation here (that's a separate,
+    // optional WebXR feature this component doesn't request), so a simple
+    // fixed rig keeps the model visible and reasonably shaded.
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.2));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(0.5, 1, 0.5);
+    scene.add(dirLight);
+
+    // Reticle: a simple ring + small axis indicator, hidden until a hit is found.
+    const reticleGeometry = new THREE.RingGeometry(0.07, 0.09, 32).rotateX(-Math.PI / 2);
+    const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
+    reticle.matrixAutoUpdate = false;
+    reticle.visible = false;
+    scene.add(reticle);
+
+    let placedModel: THREE.Object3D | null = null;
+
+    // Load the GLB once, up front, so tapping to place is instant.
+    const loader = new GLTFLoader();
+    let pendingModel: THREE.Object3D | null = null;
+    try {
+      const gltf = await loader.loadAsync(glbUrl);
+      pendingModel = gltf.scene;
+      pendingModel.scale.setScalar(modelScale);
+    } catch {
+      setPhase("error");
+      setErrorMessage("Couldn't load the 3D model.");
+    }
+
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(session);
+
+    // Two reference spaces, per the WebXR Hit Test API: 'viewer' for casting
+    // the hit-test ray from the device's current pose, 'local' for stably
+    // drawing content relative to the environment.
+    const viewerSpace = await session.requestReferenceSpace("viewer");
+    const localSpace = await session.requestReferenceSpace("local");
+    const hitTestSource = await (session as any).requestHitTestSource({ space: viewerSpace });
+
+    setPhase("active-searching");
+
+    function onSelect() {
+      if (!reticle.visible || !pendingModel) return;
+
+      if (!placedModel) {
+        placedModel = pendingModel;
+        scene.add(placedModel);
+      }
+
+      placedModel.position.setFromMatrixPosition(reticle.matrix);
+      placedModel.quaternion.setFromRotationMatrix(reticle.matrix);
+      setPhase("active-placed");
+    }
+
+    session.addEventListener("select", onSelect);
+
+    function onSessionEnd() {
+      session.removeEventListener("select", onSelect);
+      hitTestSource?.cancel?.();
+      renderer.setAnimationLoop(null);
+      renderer.dispose();
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
+      sessionRef.current = null;
+      setPhase("idle");
+    }
+    session.addEventListener("end", onSessionEnd);
+
+    renderer.setAnimationLoop((_time, frame: any) => {
+      if (!frame) return;
+
+      const viewerPose = frame.getViewerPose(localSpace);
+      reticle.visible = false;
+
+      if (hitTestSource && viewerPose) {
+        const hitTestResults = frame.getHitTestResults(hitTestSource);
+        if (hitTestResults.length > 0) {
+          const pose = hitTestResults[0].getPose(localSpace);
+          if (pose) {
+            reticle.matrix.fromArray(pose.transform.matrix);
+            // Only show the reticle (i.e. invite re-placement) before the
+            // first placement — once placed, hide it so it doesn't look like
+            // a second target is being offered. Remove this guard if you'd
+            // rather always allow re-placement via the reticle.
+            reticle.visible = !placedModel;
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+    });
+  }
+
+  function endSession() {
+    sessionRef.current?.end();
+  }
+
+  useEffect(() => {
+    return () => {
+      sessionRef.current?.end();
+    };
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100vh",
+        background: T.bg,
+        overflow: "hidden",
+      }}
+    >
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+
+      {/* This element becomes the WebXR DOM overlay once the session starts.
+          It's also rendered normally (non-immersive) before/after the
+          session, so the same JSX covers both states. */}
+      <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "1.2rem",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(13,26,31,0.75)",
+            backdropFilter: "blur(12px)",
+            border: `1px solid ${T.border}`,
+            borderRadius: 999,
+            padding: "0.45rem 1.4rem",
+            fontSize: "1.05rem",
+            fontWeight: 700,
+            letterSpacing: "-0.01em",
+            whiteSpace: "nowrap",
+            color: T.accent,
+          }}
+        >
+          {name}
+        </div>
+
+        {onExit && (
+          <button
+            onClick={() => {
+              endSession();
+              onExit();
+            }}
+            style={{
+              position: "absolute",
+              top: "1.2rem",
+              right: "1.2rem",
+              background: "rgba(13,26,31,0.75)",
+              color: T.text,
+              border: `1px solid ${T.border}`,
+              borderRadius: 999,
+              width: 36,
+              height: 36,
+              fontSize: "1rem",
+              cursor: "pointer",
+              pointerEvents: "auto",
+            }}
+            aria-label="Exit AR"
+          >
+            ✕
+          </button>
+        )}
+
+        {phase === "active-searching" && (
+          <div style={coachStyle}>
+            <span style={{ fontWeight: 700, color: T.accent }}>Move your phone slowly</span>
+            <span style={{ color: T.muted, fontSize: "0.82rem" }}>
+              Pan across a flat, textured surface, then tap to place.
+            </span>
+          </div>
+        )}
+
+        {phase === "active-placed" && (
+          <div style={{ ...coachStyle, top: "auto", bottom: "16%" }}>
+            <span style={{ color: T.muted, fontSize: "0.82rem" }}>Tap elsewhere to move it.</span>
+          </div>
+        )}
+
+        {phase === "active-searching" && !domOverlaySupported && (
+          <div style={{ ...coachStyle, top: "auto", bottom: "30%" }}>
+            <span style={{ color: "#f87171", fontSize: "0.78rem" }}>
+              On-screen guidance isn't available in this browser — point at a
+              flat surface and tap to place.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {phase === "checking-support" && (
+        <div style={overlayStyle}>
+          <span style={{ color: T.muted, fontSize: "0.9rem" }}>Checking AR support...</span>
+        </div>
+      )}
+
+      {phase === "unsupported" && (
+        <div style={overlayStyle}>
+          <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+            This browser doesn't support WebXR AR. Try Chrome on a recent
+            Android phone.
+          </span>
+        </div>
+      )}
+
+      {phase === "idle" && (
+        <div style={overlayStyle}>
+          <button
+            onClick={startSession}
+            style={{
+              background: T.primary,
+              color: "#fff",
+              border: "none",
+              borderRadius: 12,
+              padding: "0.85rem 2.4rem",
+              fontSize: "1rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
+            }}
+          >
+            Start AR
+          </button>
+        </div>
+      )}
+
+      {phase === "requesting" && (
+        <div style={overlayStyle}>
+          <span style={{ color: T.muted, fontSize: "0.9rem" }}>Starting AR session...</span>
+        </div>
+      )}
+
+      {phase === "denied" && (
+        <div style={overlayStyle}>
+          <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+            Camera access is needed for AR. Please allow camera permissions and try again.
+          </span>
+        </div>
+      )}
+
+      {phase === "error" && (
+        <div style={overlayStyle}>
+          <span style={{ color: "#f87171", fontSize: "0.9rem" }}>{errorMessage}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const overlayStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 9,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "rgba(13,26,31,0.6)",
+};
+
+const coachStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "18%",
+  left: "50%",
+  transform: "translateX(-50%)",
+  background: "rgba(13,26,31,0.85)",
+  backdropFilter: "blur(8px)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 14,
+  padding: "0.8rem 1.3rem",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "0.3rem",
+  maxWidth: "78%",
+  textAlign: "center",
+};
