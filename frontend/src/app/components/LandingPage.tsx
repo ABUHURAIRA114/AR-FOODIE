@@ -350,7 +350,7 @@ function Hero() {
 
         <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
           <BtnPrimary href="#pricing">Get Started</BtnPrimary>
-          <BtnOutline href="#video">See It In Action</BtnOutline>
+          <BtnOutline href="/ar-viewer">Watch Demo</BtnOutline>
         </div>
       </div>
 
