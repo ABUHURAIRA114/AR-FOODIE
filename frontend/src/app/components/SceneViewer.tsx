@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { T } from "./tokens.mts";
+// Image tracking fallback is disabled for now — see ImageTrackingViewer.tsx.
+// Re-enable by uncommenting this import and the three blocks below marked
+// "IMAGE TRACKING (disabled)".
 // import { ImageTrackingViewer } from "./ImageTrackingViewer";
 import { WebXRPlacementViewer } from "./WebXRPlacementViewer";
 
@@ -32,8 +35,8 @@ export function SceneViewer() {
   const [modelError, setModelError] = useState(false);
   const [modelProgress, setModelProgress] = useState(0);
 
-  // Fallback path for devices without WebXR/Scene Viewer/Quick Look support.
-  const [imageTrackingActive, setImageTrackingActive] = useState(false);
+  // IMAGE TRACKING (disabled) — state for the fallback path.
+  // const [imageTrackingActive, setImageTrackingActive] = useState(false);
 
   // Custom tap-to-place WebXR path, separate from model-viewer's AR entirely.
   const [webXrActive, setWebXrActive] = useState(false);
@@ -137,7 +140,7 @@ export function SceneViewer() {
     setModelLoading(true);
     setModelError(false);
     setModelProgress(0);
-    setImageTrackingActive(false);
+    // setImageTrackingActive(false); // IMAGE TRACKING (disabled)
     setWebXrActive(false);
 
     fetch(`${API_URL}/api/scene/${id}/`, { credentials: "include" })
@@ -186,6 +189,7 @@ export function SceneViewer() {
     );
   }
 
+  // IMAGE TRACKING (disabled) — early return for the fallback viewer.
   // if (imageTrackingActive && scene.mind_target_url) {
   //   return (
   //     <ImageTrackingViewer
@@ -366,15 +370,10 @@ export function SceneViewer() {
       )}
 
       {/*
-        Standalone fallback trigger, rendered outside <model-viewer>'s AR-button
-        slot. model-viewer hides its slotted AR button entirely on devices with
-        no AR capability at all (no WebXR, no Scene Viewer, no Quick Look) — so
-        on e.g. desktop browsers or older phones, the slotted button below may
-        never appear, and this would be the only way to reach image tracking.
-        Only shown once we know AR support is unavailable, to avoid showing two
-        competing buttons on capable devices.
+        IMAGE TRACKING (disabled) — standalone fallback trigger.
+        Re-enable along with the import, state, and early return above.
       */}
-      {!arActive && !modelLoading && !arSupported && !webXrSupported && scene.mind_target_url && (
+      {/* {!arActive && !modelLoading && !arSupported && !webXrSupported && scene.mind_target_url && (
         <button
           onClick={() => setImageTrackingActive(true)}
           style={{
@@ -404,7 +403,7 @@ export function SceneViewer() {
           </svg>
           Scan to view in AR
         </button>
-      )}
+      )} */}
 
 
       {/* @ts-ignore - model-viewer is a web component */}
@@ -422,8 +421,8 @@ export function SceneViewer() {
         camera-controls
         auto-rotate
         camera-orbit="0deg 75deg 105%"
-        min-camera-orbit="auto auto 60%"
-        max-camera-orbit="auto auto 200%"
+        min-camera-orbit="auto 35deg 60%"
+        max-camera-orbit="auto 90deg 200%"
         min-field-of-view="12deg"
         max-field-of-view="45deg"
         interaction-prompt="auto"
