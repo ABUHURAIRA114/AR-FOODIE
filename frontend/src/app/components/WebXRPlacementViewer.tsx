@@ -226,6 +226,7 @@ export function WebXRPlacementViewer({
     }
 
     let placedModel: THREE.Object3D | null = null;
+    let modelLoaded = false;
 
     // Load the GLB once, up front, so tapping to place is instant.
     const loader = new GLTFLoader();
@@ -233,10 +234,50 @@ export function WebXRPlacementViewer({
     try {
       const gltf = await loader.loadAsync(glbUrl);
       pendingModel = gltf.scene;
-      pendingModel.scale.setScalar(modelScale);
-    } catch {
+
+      // Normalize to a sane real-world size instead of trusting the GLB's
+      // raw units. Many GLBs are authored at the wrong scale (e.g. modeled
+      // in centimeters but exported as if 1 unit = 1 meter), which in
+      // model-viewer is invisible because it auto-fits the camera to the
+      // model regardless of native scale — but here, with no normalization,
+      // a mis-scaled model can end up enormous (camera ends up "inside" it,
+      // so nothing visible renders) or microscopic (invisibly small at the
+      // reticle's position). This was the most likely cause of "tap the
+      // green surface and nothing appears."
+      const box = new THREE.Box3().setFromObject(pendingModel);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const largestDimension = Math.max(size.x, size.y, size.z);
+
+      if (largestDimension > 0 && isFinite(largestDimension)) {
+        // Target ~25cm as a reasonable default real-world footprint for a
+        // dish. Combined with the explicit modelScale prop (multiplied in
+        // afterward), this gets you "the model is definitely on screen at a
+        // plausible size" by default, while still letting you override it
+        // per-model via modelScale if 25cm isn't right for a given dish.
+        const targetSize = 0.25;
+        const normalizingScale = targetSize / largestDimension;
+        pendingModel.scale.setScalar(normalizingScale * modelScale);
+      } else {
+        // Bounding box came back empty/degenerate (e.g. a GLB with no
+        // geometry, or one that failed to compute bounds) — fall back to
+        // the raw modelScale rather than silently producing a zero-size
+        // (invisible) model.
+        pendingModel.scale.setScalar(modelScale);
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[WebXRPlacementViewer] Could not compute a valid bounding box for",
+          glbUrl,
+          "— falling back to modelScale without normalization. The model may be invisible if its native scale is far from 1 unit = 1 meter."
+        );
+      }
+
+      modelLoaded = true;
+    } catch (err) {
       setPhase("error");
       setErrorMessage("Couldn't load the 3D model.");
+      // eslint-disable-next-line no-console
+      console.error("[WebXRPlacementViewer] GLTF load failed for", glbUrl, err);
     }
 
     renderer.xr.setReferenceSpaceType("local");
@@ -252,7 +293,12 @@ export function WebXRPlacementViewer({
     setPhase("active-searching");
 
     function onSelect() {
-      if (!reticle.visible || !pendingModel) return;
+      if (!reticle.visible) return;
+      if (!modelLoaded || !pendingModel) {
+        // eslint-disable-next-line no-console
+        console.warn("[WebXRPlacementViewer] Tap registered, but the model hasn't finished loading yet.");
+        return;
+      }
 
       if (!placedModel) {
         placedModel = pendingModel;
@@ -262,6 +308,9 @@ export function WebXRPlacementViewer({
       placedModel.position.setFromMatrixPosition(reticle.matrix);
       placedModel.quaternion.setFromRotationMatrix(reticle.matrix);
       setPhase("active-placed");
+
+      // eslint-disable-next-line no-console
+      console.log("[WebXRPlacementViewer] Placed model at", placedModel.position, "scale", placedModel.scale);
     }
 
     session.addEventListener("select", onSelect);
