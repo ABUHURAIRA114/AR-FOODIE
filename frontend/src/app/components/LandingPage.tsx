@@ -391,7 +391,7 @@ function BtnOutline({ href, children }: { href: string; children: React.ReactNod
 
 // ── HOW IT WORKS ──────────────────────────────────────────────────
 const steps = [
-  { num: "01", icon: "📸", title: "Upload Photos", desc: "Send us 25-40 photos of your dish from different angles. WhatsApp, Google Drive, or email — whatever works." },
+  { num: "01", icon: "📸", title: "Upload Photos", desc: "Send us 200-300 photos of your dish from different angles. WhatsApp, Google Drive, or email — whatever works." },
   { num: "02", icon: "⚙️", title: "We Build Your Model", desc: "Our team converts your photos into a realistic 3D AR model, optimised for mobile web with no app download needed." },
   { num: "03", icon: "🔗", title: "Share Anywhere", desc: "Get a QR code and shareable link. Print it on your menu, add it to your Instagram bio, or embed it on your website." },
 ];
@@ -534,7 +534,7 @@ const plans = [
       "Total Monthly Scan Count Dashboard",
     ],
     comingSoonFeatures: [
-      "QR Codes + MOdel Viewer for Web Embedding",
+      "QR Codes + Model Viewer for Web Embedding",
       "Pre-Formatted Instagram Bio Link",
       "Analytics Dashboard with Scan Heatmaps",
     ],
