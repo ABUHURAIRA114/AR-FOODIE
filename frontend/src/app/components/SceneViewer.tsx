@@ -18,6 +18,14 @@ interface SceneData {
   usdz_url: string | null;
   /** Compiled MindAR .mind target file for the image-tracking fallback. */
   mind_target_url?: string | null;
+  exposure: number;
+  shadow_intensity: number;
+  shadow_softness: number;
+  tone_mapping: string;
+  environment_image: string;
+  environment_image_url: string | null;
+  ar_scale: "auto" | "fixed";
+  webxr_model_scale: number;
 }
 
 export function SceneViewer() {
@@ -206,6 +214,7 @@ export function SceneViewer() {
       <WebXRPlacementViewer
         glbUrl={scene.glb_url}
         name={scene.name}
+        modelScale={scene.webxr_model_scale}
         onExit={() => setWebXrActive(false)}
       />
     );
@@ -416,7 +425,6 @@ export function SceneViewer() {
         ar
         ar-modes="scene-viewer quick-look"
         quick-look-browsers="safari chrome firefox"
-        ar-scale="fixed"
         ar-placement="floor"
         camera-controls
         auto-rotate
@@ -428,10 +436,12 @@ export function SceneViewer() {
         interaction-prompt="auto"
         interaction-prompt-style="basic"
         interaction-prompt-threshold="2000"
-        shadow-intensity="1"
-        environment-image="neutral"
-        tone-mapping="neutral"
-        exposure="1"
+        exposure={String(scene.exposure)}
+        shadow-intensity={String(scene.shadow_intensity)}
+        shadow-softness={String(scene.shadow_softness)}
+        tone-mapping={scene.tone_mapping}
+        environment-image={scene.environment_image_url || scene.environment_image}
+        ar-scale={scene.ar_scale}
         loading="eager"
         reveal="auto"
         style={{ width: "100%", flex: 1, background: "transparent" }}
