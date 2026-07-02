@@ -120,8 +120,8 @@ function DinenicsBrandLogo() {
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 184, 0, 0.15)",
         border: "1px solid rgba(255, 255, 255, 0.03)",
         /* Ensure the container doesn't grow */
-        width: "50px",
-        height: "50px",
+        width: "70px",
+        height: "70px",
         overflow: "hidden"
       }}>
         <img
@@ -159,10 +159,10 @@ function NavLinkPill({ to, onClick, children, full = false }: { to: string; onCl
 }
 
 const navLinks: [string, string][] = [["#how", "How It Works"], ["#video", "Demo"], ["#pricing", "Pricing"]];
+
 function Nav() {
   const [isUser, setIsUser] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
   const isNarrow = useIsNarrow();
 
@@ -172,159 +172,132 @@ function Nav() {
       .catch(() => setIsUser(false));
   }, []);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    if (!dropdownOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [dropdownOpen]);
-
   const handleLogout = async () => {
     await logoutRequest();
     setIsUser(false);
-    setDropdownOpen(false);
+    setDrawerOpen(false);
     navigate("/");
   };
 
+  const closeDrawer = () => setDrawerOpen(false);
+
   return (
-    <nav style={{
-      position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
-      background: "rgba(13,26,31,0.85)",
-      backdropFilter: "blur(14px)",
-      borderBottom: `1px solid ${T.border}`,
-    }}>
-      {/* ── BRAND ── */}
-      <DinenicsBrandLogo />
+    <>
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
+        background: "rgba(13,26,31,0.85)",
+        backdropFilter: "blur(14px)",
+        borderBottom: `1px solid ${T.border}`,
+      }}>
+        {/* ── BRAND (logo only) ── */}
+        <DinenicsBrandLogo />
 
-      {isNarrow ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-          {/* AR Demo button — always visible in ribbon */}
-          <NavLinkPill to="/ar-viewer">AR Demo</NavLinkPill>
-
-          {/* Login / Models button — always visible in ribbon */}
-          {isUser ? (
-            <NavLinkPill to="/models">Models</NavLinkPill>
-          ) : (
-            <NavLinkPill to="/user-login">Log In</NavLinkPill>
-          )}
-
-          {/* Three-dots dropdown for the rest */}
-          <div ref={dropdownRef} style={{ position: "relative" }}>
-            <button
-              aria-label="More options"
-              onClick={() => setDropdownOpen(v => !v)}
-              style={{
-                background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8,
-                width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: T.text, padding: 0,
-              }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="5" r="1.8" fill="currentColor" />
-                <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-                <circle cx="12" cy="19" r="1.8" fill="currentColor" />
-              </svg>
-            </button>
-
-            {dropdownOpen && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 8px)", right: 0,
-                background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 12,
-                padding: "0.5rem", minWidth: 180,
-                boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
-                zIndex: 200,
-              }}>
-                {navLinks.map(([href, label]) => (
-                  <a key={href} href={href}
-                    onClick={() => setDropdownOpen(false)}
-                    style={{
-                      display: "block", color: T.muted, textDecoration: "none",
-                      fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                      transition: "background 0.15s, color 0.15s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
-                    {label}
-                  </a>
-                ))}
-
-                <div style={{ borderTop: `1px solid ${T.border}`, margin: "0.4rem 0" }} />
-
-                {isUser ? (
-                  <>
-                    <Link to="/models"
-                      onClick={() => setDropdownOpen(false)}
-                      style={{
-                        display: "block", color: T.muted, textDecoration: "none",
-                        fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                        transition: "background 0.15s, color 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
-                      Models
-                    </Link>
-                    <button onClick={handleLogout}
-                      style={{
-                        display: "block", width: "100%", textAlign: "left",
-                        background: "transparent", border: "none", cursor: "pointer",
-                        color: T.muted, fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                        transition: "background 0.15s, color 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
-                      Log Out
-                    </button>
-                  </>
-                ) : (
-                  <Link to="/user-register"
-                    onClick={() => setDropdownOpen(false)}
-                    style={{
-                      display: "block", color: T.muted, textDecoration: "none",
-                      fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                      transition: "background 0.15s, color 0.15s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
-                    Register
-                  </Link>
-                )}
-              </div>
+        {isNarrow ? (
+          <button
+            aria-label="Open menu"
+            onClick={() => setDrawerOpen(true)}
+            style={{
+              background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8,
+              width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: T.text, padding: 0,
+            }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+              <circle cx="12" cy="19" r="1.8" fill="currentColor" />
+            </svg>
+          </button>
+        ) : (
+          <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
+            {navLinks.map(([href, label]) => (
+              <a key={href} href={href} style={{ color: T.muted, textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+                onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
+                {label}
+              </a>
+            ))}
+            <NavLinkPill to="/ar-viewer">View AR Demo</NavLinkPill>
+            {isUser ? (
+              <NavLinkPill to="/models">Models</NavLinkPill>
+            ) : (
+              <NavLinkPill to="/user-register">Register</NavLinkPill>
+            )}
+            {isUser ? (
+              <button onClick={handleLogout} style={{ background: T.primary, color: "#fff", padding: "0.5rem 1.2rem", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, textDecoration: "none", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: `0 0 20px rgba(166,81,17,0.3)`, border: "none", cursor: "pointer" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 0 30px rgba(166,81,17,0.5)`; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 0 20px rgba(166,81,17,0.3)`; }}>
+                Log Out
+              </button>
+            ) : (
+              <NavLinkPill to="/user-login">Log In</NavLinkPill>
             )}
           </div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
-          {navLinks.map(([href, label]) => (
-            <a key={href} href={href} style={{ color: T.muted, textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = T.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-              {label}
-            </a>
-          ))}
-          <NavLinkPill to="/ar-viewer">View AR Demo</NavLinkPill>
-          {isUser ? (
-            <NavLinkPill to="/models">Models</NavLinkPill>
-          ) : (
-            <NavLinkPill to="/user-register">Register</NavLinkPill>
-          )}
-          {isUser ? (
-            <button onClick={handleLogout} style={{ background: T.primary, color: "#fff", padding: "0.5rem 1.2rem", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, textDecoration: "none", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: `0 0 20px rgba(166,81,17,0.3)`, border: "none", cursor: "pointer" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 0 30px rgba(166,81,17,0.5)`; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 0 20px rgba(166,81,17,0.3)`; }}>
-              Log Out
-            </button>
-          ) : (
-            <NavLinkPill to="/user-login">Log In</NavLinkPill>
-          )}
-        </div>
+        )}
+      </nav>
+
+      {/* Backdrop */}
+      {isNarrow && (
+        <div
+          onClick={closeDrawer}
+          style={{
+            position: "fixed", inset: 0, zIndex: 199,
+            background: "rgba(0,0,0,0.5)",
+            opacity: drawerOpen ? 1 : 0,
+            pointerEvents: drawerOpen ? "auto" : "none",
+            transition: "opacity 0.3s ease",
+          }}
+        />
       )}
-    </nav>
+
+      {/* Sidebar drawer */}
+      {isNarrow && (
+        <aside style={{
+          position: "fixed", top: 0, right: 0, height: "100vh", width: "min(78vw, 320px)",
+          background: T.bg2, borderLeft: `1px solid ${T.border}`, zIndex: 200,
+          transform: drawerOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.32s ease",
+          display: "flex", flexDirection: "column", padding: "1.25rem",
+          boxShadow: drawerOpen ? "-8px 0 30px rgba(0,0,0,0.35)" : "none",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+            <DinenicsBrandLogo />
+            <button
+              aria-label="Close menu"
+              onClick={closeDrawer}
+              style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, padding: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginBottom: "1.5rem" }}>
+            {navLinks.map(([href, label]) => (
+              <a key={href} href={href} onClick={closeDrawer}
+                style={{ color: T.muted, textDecoration: "none", fontSize: "1rem", padding: "0.75rem 0.25rem", borderBottom: `1px solid ${T.border}` }}>
+                {label}
+              </a>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "auto" }}>
+            <NavLinkPill to="/ar-viewer" onClick={closeDrawer} full>View AR Demo</NavLinkPill>
+            {isUser ? (
+              <NavLinkPill to="/models" onClick={closeDrawer} full>Models</NavLinkPill>
+            ) : (
+              <NavLinkPill to="/user-register" onClick={closeDrawer} full>Register</NavLinkPill>
+            )}
+            {isUser ? (
+              <button onClick={handleLogout} style={{ background: T.primary, color: "#fff", padding: "0.85rem 1.2rem", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, border: "none", cursor: "pointer", width: "100%", boxShadow: `0 0 20px rgba(166,81,17,0.3)` }}>
+                Log Out
+              </button>
+            ) : (
+              <NavLinkPill to="/user-login" onClick={closeDrawer} full>Log In</NavLinkPill>
+            )}
+          </div>
+        </aside>
+      )}
+    </>
   );
 }
 
@@ -391,7 +364,7 @@ function BtnOutline({ href, children }: { href: string; children: React.ReactNod
 
 // ── HOW IT WORKS ──────────────────────────────────────────────────
 const steps = [
-  { num: "01", icon: "📸", title: "Upload Photos", desc: "Send us 200-300 photos of your dish from different angles. WhatsApp, Google Drive, or email — whatever works." },
+  { num: "01", icon: "📸", title: "Upload Photos", desc: "Send us 150-200 photos of your dish from different angles. WhatsApp, Google Drive, or email — whatever works." },
   { num: "02", icon: "⚙️", title: "We Build Your Model", desc: "Our team converts your photos into a realistic 3D AR model, optimised for mobile web with no app download needed." },
   { num: "03", icon: "🔗", title: "Share Anywhere", desc: "Get a QR code and shareable link. Print it on your menu, add it to your Instagram bio, or embed it on your website." },
 ];
@@ -534,7 +507,7 @@ const plans = [
       "Total Monthly Scan Count Dashboard",
     ],
     comingSoonFeatures: [
-      "QR Codes + Model Viewer for Web Embedding",
+      "QR Codes + MOdel Viewer for Web Embedding",
       "Pre-Formatted Instagram Bio Link",
       "Analytics Dashboard with Scan Heatmaps",
     ],
