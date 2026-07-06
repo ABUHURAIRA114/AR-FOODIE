@@ -120,8 +120,8 @@ function DinenicsBrandLogo() {
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 184, 0, 0.15)",
         border: "1px solid rgba(255, 255, 255, 0.03)",
         /* Ensure the container doesn't grow */
-        width: "70px",
-        height: "70px",
+        width: "55px",
+        height: "55px",
         overflow: "hidden"
       }}>
         <img
@@ -159,10 +159,10 @@ function NavLinkPill({ to, onClick, children, full = false }: { to: string; onCl
 }
 
 const navLinks: [string, string][] = [["#how", "How It Works"], ["#video", "Demo"], ["#pricing", "Pricing"]];
-
 function Nav() {
   const [isUser, setIsUser] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const isNarrow = useIsNarrow();
 
@@ -172,164 +172,330 @@ function Nav() {
       .catch(() => setIsUser(false));
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [dropdownOpen]);
+
   const handleLogout = async () => {
     await logoutRequest();
     setIsUser(false);
-    setDrawerOpen(false);
+    setDropdownOpen(false);
     navigate("/");
   };
 
-  const closeDrawer = () => setDrawerOpen(false);
-
   return (
-    <>
-      <nav style={{
-        position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
-        background: "rgba(13,26,31,0.85)",
-        backdropFilter: "blur(14px)",
-        borderBottom: `1px solid ${T.border}`,
-      }}>
-        {/* ── BRAND (logo only) ── */}
-        <DinenicsBrandLogo />
+    <nav style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
+      background: "rgba(13,26,31,0.85)",
+      backdropFilter: "blur(14px)",
+      borderBottom: `1px solid ${T.border}`,
+    }}>
+      {/* ── BRAND ── */}
+      <DinenicsBrandLogo />
 
-        {isNarrow ? (
-          <button
-            aria-label="Open menu"
-            onClick={() => setDrawerOpen(true)}
-            style={{
-              background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8,
-              width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: T.text, padding: 0,
-            }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="5" r="1.8" fill="currentColor" />
-              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-              <circle cx="12" cy="19" r="1.8" fill="currentColor" />
-            </svg>
-          </button>
-        ) : (
-          <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
-            {navLinks.map(([href, label]) => (
-              <a key={href} href={href} style={{ color: T.muted, textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
-                onMouseEnter={e => (e.currentTarget.style.color = T.text)}
-                onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-                {label}
-              </a>
-            ))}
-            <NavLinkPill to="/ar-viewer">View AR Demo</NavLinkPill>
-            {isUser ? (
-              <NavLinkPill to="/models">Models</NavLinkPill>
-            ) : (
-              <NavLinkPill to="/user-register">Register</NavLinkPill>
-            )}
-            {isUser ? (
-              <button onClick={handleLogout} style={{ background: T.primary, color: "#fff", padding: "0.5rem 1.2rem", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, textDecoration: "none", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: `0 0 20px rgba(166,81,17,0.3)`, border: "none", cursor: "pointer" }}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 0 30px rgba(166,81,17,0.5)`; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 0 20px rgba(166,81,17,0.3)`; }}>
-                Log Out
-              </button>
-            ) : (
-              <NavLinkPill to="/user-login">Log In</NavLinkPill>
-            )}
-          </div>
-        )}
-      </nav>
+      {isNarrow ? (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          {/* AR Demo button — always visible in ribbon */}
+          <NavLinkPill to="/ar-viewer">AR Demo</NavLinkPill>
 
-      {/* Backdrop */}
-      {isNarrow && (
-        <div
-          onClick={closeDrawer}
-          style={{
-            position: "fixed", inset: 0, zIndex: 199,
-            background: "rgba(0,0,0,0.5)",
-            opacity: drawerOpen ? 1 : 0,
-            pointerEvents: drawerOpen ? "auto" : "none",
-            transition: "opacity 0.3s ease",
-          }}
-        />
-      )}
+          {/* Login / Models button — always visible in ribbon */}
+          {isUser ? (
+            <NavLinkPill to="/models">Models</NavLinkPill>
+          ) : (
+            <NavLinkPill to="/user-login">Log In</NavLinkPill>
+          )}
 
-      {/* Sidebar drawer */}
-      {isNarrow && (
-        <aside style={{
-          position: "fixed", top: 0, right: 0, height: "100vh", width: "min(78vw, 320px)",
-          background: T.bg2, borderLeft: `1px solid ${T.border}`, zIndex: 200,
-          transform: drawerOpen ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.32s ease",
-          display: "flex", flexDirection: "column", padding: "1.25rem",
-          boxShadow: drawerOpen ? "-8px 0 30px rgba(0,0,0,0.35)" : "none",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-            <DinenicsBrandLogo />
+          {/* Three-dots dropdown for the rest */}
+          <div ref={dropdownRef} style={{ position: "relative" }}>
             <button
-              aria-label="Close menu"
-              onClick={closeDrawer}
-              style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, padding: 0 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              aria-label="More options"
+              onClick={() => setDropdownOpen(v => !v)}
+              style={{
+                background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8,
+                width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: T.text, padding: 0,
+              }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                <circle cx="12" cy="19" r="1.8" fill="currentColor" />
+              </svg>
             </button>
-          </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginBottom: "1.5rem" }}>
-            {navLinks.map(([href, label]) => (
-              <a key={href} href={href} onClick={closeDrawer}
-                style={{ color: T.muted, textDecoration: "none", fontSize: "1rem", padding: "0.75rem 0.25rem", borderBottom: `1px solid ${T.border}` }}>
-                {label}
-              </a>
-            ))}
-          </div>
+            {dropdownOpen && (
+              <div style={{
+                position: "absolute", top: "calc(100% + 8px)", right: 0,
+                background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 12,
+                padding: "0.5rem", minWidth: 180,
+                boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
+                zIndex: 200,
+              }}>
+                {navLinks.map(([href, label]) => (
+                  <a key={href} href={href}
+                    onClick={() => setDropdownOpen(false)}
+                    style={{
+                      display: "block", color: T.muted, textDecoration: "none",
+                      fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
+                      transition: "background 0.15s, color 0.15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
+                    {label}
+                  </a>
+                ))}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "auto" }}>
-            <NavLinkPill to="/ar-viewer" onClick={closeDrawer} full>View AR Demo</NavLinkPill>
-            {isUser ? (
-              <NavLinkPill to="/models" onClick={closeDrawer} full>Models</NavLinkPill>
-            ) : (
-              <NavLinkPill to="/user-register" onClick={closeDrawer} full>Register</NavLinkPill>
-            )}
-            {isUser ? (
-              <button onClick={handleLogout} style={{ background: T.primary, color: "#fff", padding: "0.85rem 1.2rem", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, border: "none", cursor: "pointer", width: "100%", boxShadow: `0 0 20px rgba(166,81,17,0.3)` }}>
-                Log Out
-              </button>
-            ) : (
-              <NavLinkPill to="/user-login" onClick={closeDrawer} full>Log In</NavLinkPill>
+                <div style={{ borderTop: `1px solid ${T.border}`, margin: "0.4rem 0" }} />
+
+                {isUser ? (
+                  <>
+                    <Link to="/models"
+                      onClick={() => setDropdownOpen(false)}
+                      style={{
+                        display: "block", color: T.muted, textDecoration: "none",
+                        fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
+                        transition: "background 0.15s, color 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
+                      Models
+                    </Link>
+                    <button onClick={handleLogout}
+                      style={{
+                        display: "block", width: "100%", textAlign: "left",
+                        background: "transparent", border: "none", cursor: "pointer",
+                        color: T.muted, fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
+                        transition: "background 0.15s, color 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
+                      Log Out
+                    </button>
+                  </>
+                ) : (
+                  <Link to="/user-register"
+                    onClick={() => setDropdownOpen(false)}
+                    style={{
+                      display: "block", color: T.muted, textDecoration: "none",
+                      fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
+                      transition: "background 0.15s, color 0.15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
+                    Register
+                  </Link>
+                )}
+              </div>
             )}
           </div>
-        </aside>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
+          {navLinks.map(([href, label]) => (
+            <a key={href} href={href} style={{ color: T.muted, textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+              onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
+              {label}
+            </a>
+          ))}
+          <NavLinkPill to="/ar-viewer">View AR Demo</NavLinkPill>
+          {isUser ? (
+            <NavLinkPill to="/models">Models</NavLinkPill>
+          ) : (
+            <NavLinkPill to="/user-register">Register</NavLinkPill>
+          )}
+          {isUser ? (
+            <button onClick={handleLogout} style={{ background: T.primary, color: "#fff", padding: "0.5rem 1.2rem", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, textDecoration: "none", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: `0 0 20px rgba(166,81,17,0.3)`, border: "none", cursor: "pointer" }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 0 30px rgba(166,81,17,0.5)`; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 0 20px rgba(166,81,17,0.3)`; }}>
+              Log Out
+            </button>
+          ) : (
+            <NavLinkPill to="/user-login">Log In</NavLinkPill>
+          )}
+        </div>
       )}
-    </>
+    </nav>
   );
 }
 
-// ── HERO ──────────────────────────────────────────────────────────
 function Hero() {
+  const isNarrow = useIsNarrow();
+
   return (
-    <section id="hero" style={{ position: "relative", height: "100vh", minHeight: 600, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-      <HeroBurger />
+    <section id="hero" style={{
+      position: "relative", height: "100vh", minHeight: 600,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      overflow: "hidden",
+    }}>
+      {/* <HeroBurger />
+      <div style={{ position: "absolute", inset: 0, background: "rgba(13,26,31,0.52)", pointerEvents: "none" }} /> */}
 
-      {/* Subtle overlay */}
-      <div style={{ position: "absolute", inset: 0, background: "rgba(13,26,31,0.45)", pointerEvents: "none" }} />
+      <div style={{
+        position: "relative", zIndex: 10,
+        display: "grid",
+        gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr",
+        alignItems: "center",
+        width: "100%", maxWidth: 1300,
+        padding: isNarrow ? "0 1.5rem" : "0 3rem",
+        gap: isNarrow ? "2.5rem" : "4rem",
+        textAlign: isNarrow ? "center" : "left",
+      }}>
 
-      <div style={{ position: "relative", zIndex: 10, textAlign: "center", padding: "0 1.5rem", maxWidth: 800 }}>
-      
+        {/* LEFT — Plate with badge + food-shaped buttons */}
+        <div style={{
+          display: "flex", flexDirection: "column",
+          alignItems: "center", gap: 0,
+        }}>
+          {/* Plate */}
+          <div style={{
+            position: "relative",
+            width: isNarrow ? 210 : 250, height: isNarrow ? 210 : 250,
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 35% 30%, #fdfcf7 0%, #eee8d9 55%, #cfc6ae 100%)",
+            boxShadow: "0 18px 45px rgba(0,0,0,0.45), inset 0 3px 8px rgba(255,255,255,0.75), inset 0 -8px 18px rgba(0,0,0,0.18)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 2,
+          }}>
+            {/* Plate rim ring */}
+            <div style={{
+              position: "absolute", inset: isNarrow ? 14 : 18,
+              borderRadius: "50%",
+              boxShadow: "inset 0 2px 6px rgba(0,0,0,0.1)",
+              border: "1px solid rgba(0,0,0,0.05)",
+            }} />
 
-        <h1 style={{ fontSize: "clamp(2.4rem,6vw,4.4rem)", fontWeight: 900, lineHeight: 1.08, letterSpacing: "-0.03em", marginBottom: "1.4rem", color: T.text }}>
-          Make Your Menu<br /><AccentText>Come Alive</AccentText>
-        </h1>
+            {/* Dinenics badge — the "dish" on the plate */}
+            <div style={{
+              width: isNarrow ? 148 : 176, height: isNarrow ? 148 : 176,
+              borderRadius: "50%",
+              background: "rgba(212,160,0,0.14)",
+              border: "2px solid rgba(245,184,0,0.55)",
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              boxShadow: "0 0 40px rgba(245,184,0,0.22), 0 6px 16px rgba(0,0,0,0.25)",
+              position: "relative", zIndex: 1,
+            }}>
+              <span style={{ fontSize: "clamp(1.4rem,3.2vw,1.9rem)", fontWeight: 900, color: "#f5b800", letterSpacing: "-0.03em" }}>
+                Dinenics
+              </span>
+              <span style={{ fontSize: "0.68rem", color: "rgba(232,221,208,0.6)", marginTop: "0.3rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                AR Menus
+              </span>
+            </div>
+          </div>
 
-        <p style={{ fontSize: "clamp(1rem,2.5vw,1.3rem)", fontWeight: 600, color: T.muted, lineHeight: 1.75, maxWidth: 560, margin: "0 auto 2.5rem" }}>
-          Turn your food photos into interactive 3D AR models. Customers see your dish on their table before they order.
-        </p>
+          <div style={{ width: 2, height: isNarrow ? 22 : 30, background: "rgba(245,184,0,0.35)" }} />
 
-        <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <BtnPrimary href="#pricing">Get Started</BtnPrimary>
-          <BtnOutline href="/ar-viewer">Watch Demo</BtnOutline>
+          {/* Two food-shaped buttons, separated */}
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: isNarrow ? "1.5rem" : "2.2rem" }}>
+
+            {/* BURGER button */}
+            <a href="#pricing" aria-label="Get Started" style={{
+              position: "relative",
+              width: isNarrow ? 118 : 142, height: isNarrow ? 118 : 142,
+              borderRadius: "50%", overflow: "hidden",
+              display: "flex", alignItems: "flex-end", justifyContent: "center",
+              textDecoration: "none",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.35), 0 0 0 3px rgba(245,184,0,0.25)",
+              transition: "transform 0.25s, box-shadow 0.25s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.07)"; e.currentTarget.style.boxShadow = "0 14px 40px rgba(0,0,0,0.45), 0 0 0 3px rgba(245,184,0,0.5)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35), 0 0 0 3px rgba(245,184,0,0.25)"; }}>
+              {/* top bun */}
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "34%", background: "linear-gradient(180deg,#f0b855,#c9862c)", borderRadius: "50% 50% 6% 6%" }}>
+                {[[22, 32], [42, 18], [62, 34], [78, 20], [50, 44]].map(([x, y], i) => (
+                  <div key={i} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, width: 5, height: 8, borderRadius: "50%", background: "#fff6d8", transform: "rotate(20deg)", opacity: 0.85 }} />
+                ))}
+              </div>
+              {/* lettuce */}
+              <div style={{ position: "absolute", top: "34%", left: 0, right: 0, height: "9%", background: "#5a8a34" }} />
+              {/* tomato */}
+              <div style={{ position: "absolute", top: "43%", left: 0, right: 0, height: "7%", background: "#c23b2c" }} />
+              {/* patty */}
+              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "20%", background: "linear-gradient(180deg,#6b4322,#4a2c15)" }} />
+              {/* bottom bun */}
+              <div style={{ position: "absolute", top: "70%", left: 0, right: 0, bottom: 0, background: "linear-gradient(180deg,#e0a548,#b97a24)", borderRadius: "6% 6% 50% 50%" }} />
+              {/* label */}
+              <span style={{
+                position: "relative", zIndex: 5, marginBottom: isNarrow ? 10 : 14,
+                fontSize: isNarrow ? "0.7rem" : "0.78rem", fontWeight: 800, color: "#fff",
+                textShadow: "0 1px 4px rgba(0,0,0,0.6)", padding: "0.2rem 0.55rem",
+                background: "rgba(0,0,0,0.3)", borderRadius: 8, whiteSpace: "nowrap",
+              }}>
+                Get Started
+              </span>
+            </a>
+
+            {/* PIZZA button */}
+            <a href="/ar-viewer" aria-label="Watch Demo" style={{
+              position: "relative",
+              width: isNarrow ? 118 : 142, height: isNarrow ? 130 : 156,
+              display: "flex", alignItems: "flex-end", justifyContent: "center",
+              textDecoration: "none",
+              clipPath: "polygon(50% 100%, 6% 18%, 12% 9%, 26% 4%, 50% 2%, 74% 4%, 88% 9%, 94% 18%)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+              transition: "transform 0.25s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.07)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; }}>
+              {/* crust */}
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "18%", background: "linear-gradient(180deg,#e3b164,#c48a3d)" }} />
+              {/* cheese/sauce base */}
+              <div style={{ position: "absolute", top: "16%", left: 0, right: 0, bottom: 0, background: "linear-gradient(180deg,#f7c948,#e2a52e)" }} />
+              {/* pepperoni */}
+              {[[50, 30], [35, 46], [65, 46], [50, 60], [42, 72], [58, 72]].map(([x, y], i) => (
+                <div key={i} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, width: 13, height: 13, borderRadius: "50%", background: "#a5321f", boxShadow: "inset 0 0 0 2px rgba(0,0,0,0.15)", transform: "translate(-50%,-50%)" }} />
+              ))}
+              {/* label */}
+              <span style={{
+                position: "relative", zIndex: 5, marginBottom: isNarrow ? 12 : 16,
+                fontSize: isNarrow ? "0.68rem" : "0.76rem", fontWeight: 800, color: "#3a2410",
+                textShadow: "0 1px 2px rgba(255,255,255,0.4)", padding: "0.2rem 0.55rem",
+                background: "rgba(255,255,255,0.4)", borderRadius: 8, whiteSpace: "nowrap",
+              }}>
+                Watch Demo
+              </span>
+            </a>
+          </div>
         </div>
+
+        {/* RIGHT — tagline */}
+        <div>
+          <p style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f5b800", marginBottom: "1rem" }}>
+            AR Menu Technology
+          </p>
+          <h1 style={{
+            fontSize: "clamp(2.2rem,5.5vw,4rem)", fontWeight: 900,
+            lineHeight: 1.08, letterSpacing: "-0.03em",
+            color: "#fff", marginBottom: "1.4rem",
+          }}>
+            Make Your Menu<br />
+            <span style={{ color: "#f5b800" }}>Come Alive</span>
+          </h1>
+          <p style={{
+            fontSize: "clamp(0.95rem,2vw,1.15rem)", fontWeight: 500,
+            color: "rgba(232,221,208,0.75)", lineHeight: 1.75,
+            maxWidth: 5000,
+            margin: isNarrow ? "0 auto" : "0 0 0 auto",
+          }}>
+            Turn your food photos into interactive 3D AR models. Customers see your dish on their table before they order.
+          </p>
+        </div>
+
       </div>
 
       {/* Scroll hint */}
-      <div style={{ position: "absolute", bottom: "2.5rem", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem", color: T.muted, fontSize: "0.75rem" }}
-        className="animate-bounce">
+      <div style={{ position: "absolute", bottom: "2.5rem", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem", color: "rgba(232,221,208,0.4)", fontSize: "0.75rem" }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" opacity={0.5}>
           <path d="M12 5v14M5 12l7 7 7-7" />
         </svg>
