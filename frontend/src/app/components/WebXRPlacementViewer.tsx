@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { T } from "./tokens.mts";
 
 /**
@@ -60,7 +61,8 @@ type SessionPhase =
   | "idle"
   | "requesting"
   | "denied"
-  | "active-searching"
+  | "active-loading"   // XR session started, GLB still downloading
+  | "active-searching" // GLB ready, scanning for surfaces
   | "active-placed"
   | "error";
 
@@ -227,52 +229,33 @@ export function WebXRPlacementViewer({
 
     let placedModel: THREE.Object3D | null = null;
     let modelLoaded = false;
-
-    // Load the GLB once, up front, so tapping to place is instant.
-    const loader = new GLTFLoader();
     let pendingModel: THREE.Object3D | null = null;
+
+    // Load the GLB BEFORE starting the XR session so:
+    // 1. We know the model is ready before the user can tap
+    // 2. Any CORS/network error surfaces before the camera opens
+    // 3. The "active-loading" phase shows clearly in the pre-AR UI
+    setPhase("active-loading");
+    const dracoLoader = new DRACOLoader();
+    // Draco WASM decoder — loaded from CDN so we don't have to copy the
+    // decoder files into /public ourselves. This is the same CDN Three.js
+    // uses in its own examples and is safe to use in production.
+    dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
+    dracoLoader.setDecoderConfig({ type: "wasm" });
+
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
     try {
       const gltf = await loader.loadAsync(glbUrl);
       const gltfScene = gltf.scene;
 
       // --- Fix 1: neutralise any baked root-node rotation ---
-      //
-      // Many GLBs (especially from Blender) have a non-identity rotation on
-      // the root node: either the standard Blender Z-up correction (-90° X),
-      // or arbitrary rotations from the authoring workflow (e.g. this
-      // shawarma model has a -77° X + -21° Z bake). Three.js applies these
-      // as-is, so without correction the model sits tilted/sideways on the
-      // detected plane instead of upright.
-      //
-      // Fix: wrap the loaded scene in a pivot group, then counter-rotate the
-      // pivot so the model's local "up" aligns with world Y (the AR floor
-      // normal). We extract the root node's euler angles and negate them on
-      // the pivot, effectively zeroing out the bake without modifying the
-      // GLB's own node tree.
-      //
-      // Scene Viewer / model-viewer do this automatically — which is why
-      // the model looks fine there but sideways in raw Three.js.
       const pivot = new THREE.Group();
-
-      // Apply the inverse of whatever rotation the root node has, so the
-      // combined result is a net-zero rotation relative to the world.
-      // We do this by cloning the root's quaternion, inverting it, and
-      // applying it to the pivot group — the root still has its original
-      // rotation, but the pivot cancels it out at the parent level.
       const rootQuaternion = gltfScene.quaternion.clone();
       pivot.quaternion.copy(rootQuaternion.invert());
       pivot.add(gltfScene);
 
       // --- Fix 2: correct bounding box computation ---
-      //
-      // Box3.setFromObject traverses the scene graph, but it relies on
-      // matrixWorld being up to date. Before a model is added to a rendered
-      // scene, updateWorldMatrix has never been called, so the traversal sees
-      // stale/identity matrices — especially problematic when there are baked
-      // scale/rotation transforms on the root node, which is exactly this
-      // model's situation (root has scale=0.1 and a complex rotation).
-      // Calling updateWorldMatrix(true, true) forces a full top-down
-      // recomputation before we measure the box.
       pivot.updateWorldMatrix(true, true);
       const box = new THREE.Box3().setFromObject(pivot);
       const size = new THREE.Vector3();
@@ -280,60 +263,51 @@ export function WebXRPlacementViewer({
       const largestDimension = Math.max(size.x, size.y, size.z);
 
       if (largestDimension > 0 && isFinite(largestDimension)) {
-        // Target ~25cm as a reasonable default real-world footprint for a
-        // dish. The pivot group (not the raw gltfScene) is what we scale,
-        // so the normalisation is applied after the rotation correction —
-        // order matters here.
         const targetSize = 0.25;
         const normalizingScale = targetSize / largestDimension;
         pivot.scale.setScalar(normalizingScale * modelScale);
       } else {
         pivot.scale.setScalar(modelScale);
-        // eslint-disable-next-line no-console
-        console.warn(
-          "[WebXRPlacementViewer] Could not compute a valid bounding box for",
-          glbUrl,
-          "— falling back to modelScale without normalization."
-        );
+        console.warn("[WebXRPlacementViewer] Degenerate bounding box — using raw modelScale.");
       }
 
-      // Re-center the pivot so the model's base (bottom of bounding box)
-      // sits at the pivot's origin — this makes the model appear to rest
-      // ON the detected surface rather than floating above it or clipping
-      // through it, since the hit-test pose positions the reticle at the
-      // plane surface itself.
-      box.setFromObject(pivot); // recompute after scaling
+      // Re-center: model base sits at y=0 (the surface), horizontally centered
+      box.setFromObject(pivot);
       const center = new THREE.Vector3();
       box.getCenter(center);
       gltfScene.position.x -= center.x / pivot.scale.x;
       gltfScene.position.z -= center.z / pivot.scale.z;
-      // Y: offset so the model bottom sits at y=0 (the surface), not center
-      const boxMin = box.min;
-      gltfScene.position.y -= boxMin.y / pivot.scale.y;
+      gltfScene.position.y -= box.min.y / pivot.scale.y;
 
       pendingModel = pivot;
       modelLoaded = true;
+      dracoLoader.dispose();
 
-      // eslint-disable-next-line no-console
       console.log(
         "[WebXRPlacementViewer] Model ready.",
-        `Bounding box: ${size.x.toFixed(3)} x ${size.y.toFixed(3)} x ${size.z.toFixed(3)} m`,
-        `Normalizing scale: ${(0.25 / largestDimension).toFixed(4)} × modelScale ${modelScale}`,
-        `Final scale: ${pivot.scale.x.toFixed(4)}`
+        `Size: ${size.x.toFixed(3)}×${size.y.toFixed(3)}×${size.z.toFixed(3)} m`,
+        `Scale: ${pivot.scale.x.toFixed(4)}`
       );
-    } catch (err) {
+    } catch (err: any) {
+      dracoLoader.dispose();
+      console.error("[WebXRPlacementViewer] GLB load failed:", err);
+      // Surface the error with as much detail as possible so we know
+      // immediately whether this is CORS, a 404, or a parse error.
+      const isCors = err?.message?.toLowerCase().includes("cors") ||
+                     err?.message?.toLowerCase().includes("failed to fetch") ||
+                     err?.message?.toLowerCase().includes("network");
       setPhase("error");
-      setErrorMessage("Couldn't load the 3D model.");
-      // eslint-disable-next-line no-console
-      console.error("[WebXRPlacementViewer] GLTF load failed for", glbUrl, err);
+      setErrorMessage(
+        isCors
+          ? "Couldn't load the 3D model — possible CORS issue. Check that your API server allows cross-origin requests for /media/ files."
+          : `Couldn't load the 3D model. (${err?.message ?? "Unknown error"})`
+      );
+      return; // abort — don't open the XR session if we have no model
     }
 
     renderer.xr.setReferenceSpaceType("local");
     await renderer.xr.setSession(session);
 
-    // Two reference spaces, per the WebXR Hit Test API: 'viewer' for casting
-    // the hit-test ray from the device's current pose, 'local' for stably
-    // drawing content relative to the environment.
     const viewerSpace = await session.requestReferenceSpace("viewer");
     const localSpace = await session.requestReferenceSpace("local");
     const hitTestSource = await (session as any).requestHitTestSource({ space: viewerSpace });
@@ -343,8 +317,7 @@ export function WebXRPlacementViewer({
     function onSelect() {
       if (!reticle.visible) return;
       if (!modelLoaded || !pendingModel) {
-        // eslint-disable-next-line no-console
-        console.warn("[WebXRPlacementViewer] Tap registered, but the model hasn't finished loading yet.");
+        console.warn("[WebXRPlacementViewer] Tap before model ready — should not happen now.");
         return;
       }
 
@@ -550,6 +523,19 @@ export function WebXRPlacementViewer({
         </div>
       )}
 
+      {phase === "active-loading" && (
+        <div style={overlayStyle}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.8rem" }}>
+            <div style={{
+              width: 36, height: 36, border: `3px solid ${T.border}`,
+              borderTopColor: T.accent, borderRadius: "50%",
+              animation: "xrSpin 0.8s linear infinite",
+            }} />
+            <span style={{ color: T.muted, fontSize: "0.9rem" }}>Loading 3D model...</span>
+          </div>
+        </div>
+      )}
+
       {phase === "requesting" && (
         <div style={overlayStyle}>
           <span style={{ color: T.muted, fontSize: "0.9rem" }}>Starting AR session...</span>
@@ -600,3 +586,11 @@ const coachStyle: React.CSSProperties = {
   maxWidth: "78%",
   textAlign: "center",
 };
+
+// Inject spinner keyframe once
+if (typeof document !== "undefined" && !document.getElementById("xr-spinner-style")) {
+  const s = document.createElement("style");
+  s.id = "xr-spinner-style";
+  s.textContent = "@keyframes xrSpin { to { transform: rotate(360deg); } }";
+  document.head.appendChild(s);
+}
