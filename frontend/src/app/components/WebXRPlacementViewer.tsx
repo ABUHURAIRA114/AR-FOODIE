@@ -233,46 +233,94 @@ export function WebXRPlacementViewer({
     let pendingModel: THREE.Object3D | null = null;
     try {
       const gltf = await loader.loadAsync(glbUrl);
-      pendingModel = gltf.scene;
+      const gltfScene = gltf.scene;
 
-      // Normalize to a sane real-world size instead of trusting the GLB's
-      // raw units. Many GLBs are authored at the wrong scale (e.g. modeled
-      // in centimeters but exported as if 1 unit = 1 meter), which in
-      // model-viewer is invisible because it auto-fits the camera to the
-      // model regardless of native scale — but here, with no normalization,
-      // a mis-scaled model can end up enormous (camera ends up "inside" it,
-      // so nothing visible renders) or microscopic (invisibly small at the
-      // reticle's position). This was the most likely cause of "tap the
-      // green surface and nothing appears."
-      const box = new THREE.Box3().setFromObject(pendingModel);
+      // --- Fix 1: neutralise any baked root-node rotation ---
+      //
+      // Many GLBs (especially from Blender) have a non-identity rotation on
+      // the root node: either the standard Blender Z-up correction (-90° X),
+      // or arbitrary rotations from the authoring workflow (e.g. this
+      // shawarma model has a -77° X + -21° Z bake). Three.js applies these
+      // as-is, so without correction the model sits tilted/sideways on the
+      // detected plane instead of upright.
+      //
+      // Fix: wrap the loaded scene in a pivot group, then counter-rotate the
+      // pivot so the model's local "up" aligns with world Y (the AR floor
+      // normal). We extract the root node's euler angles and negate them on
+      // the pivot, effectively zeroing out the bake without modifying the
+      // GLB's own node tree.
+      //
+      // Scene Viewer / model-viewer do this automatically — which is why
+      // the model looks fine there but sideways in raw Three.js.
+      const pivot = new THREE.Group();
+
+      // Apply the inverse of whatever rotation the root node has, so the
+      // combined result is a net-zero rotation relative to the world.
+      // We do this by cloning the root's quaternion, inverting it, and
+      // applying it to the pivot group — the root still has its original
+      // rotation, but the pivot cancels it out at the parent level.
+      const rootQuaternion = gltfScene.quaternion.clone();
+      pivot.quaternion.copy(rootQuaternion.invert());
+      pivot.add(gltfScene);
+
+      // --- Fix 2: correct bounding box computation ---
+      //
+      // Box3.setFromObject traverses the scene graph, but it relies on
+      // matrixWorld being up to date. Before a model is added to a rendered
+      // scene, updateWorldMatrix has never been called, so the traversal sees
+      // stale/identity matrices — especially problematic when there are baked
+      // scale/rotation transforms on the root node, which is exactly this
+      // model's situation (root has scale=0.1 and a complex rotation).
+      // Calling updateWorldMatrix(true, true) forces a full top-down
+      // recomputation before we measure the box.
+      pivot.updateWorldMatrix(true, true);
+      const box = new THREE.Box3().setFromObject(pivot);
       const size = new THREE.Vector3();
       box.getSize(size);
       const largestDimension = Math.max(size.x, size.y, size.z);
 
       if (largestDimension > 0 && isFinite(largestDimension)) {
         // Target ~25cm as a reasonable default real-world footprint for a
-        // dish. Combined with the explicit modelScale prop (multiplied in
-        // afterward), this gets you "the model is definitely on screen at a
-        // plausible size" by default, while still letting you override it
-        // per-model via modelScale if 25cm isn't right for a given dish.
+        // dish. The pivot group (not the raw gltfScene) is what we scale,
+        // so the normalisation is applied after the rotation correction —
+        // order matters here.
         const targetSize = 0.25;
         const normalizingScale = targetSize / largestDimension;
-        pendingModel.scale.setScalar(normalizingScale * modelScale);
+        pivot.scale.setScalar(normalizingScale * modelScale);
       } else {
-        // Bounding box came back empty/degenerate (e.g. a GLB with no
-        // geometry, or one that failed to compute bounds) — fall back to
-        // the raw modelScale rather than silently producing a zero-size
-        // (invisible) model.
-        pendingModel.scale.setScalar(modelScale);
+        pivot.scale.setScalar(modelScale);
         // eslint-disable-next-line no-console
         console.warn(
           "[WebXRPlacementViewer] Could not compute a valid bounding box for",
           glbUrl,
-          "— falling back to modelScale without normalization. The model may be invisible if its native scale is far from 1 unit = 1 meter."
+          "— falling back to modelScale without normalization."
         );
       }
 
+      // Re-center the pivot so the model's base (bottom of bounding box)
+      // sits at the pivot's origin — this makes the model appear to rest
+      // ON the detected surface rather than floating above it or clipping
+      // through it, since the hit-test pose positions the reticle at the
+      // plane surface itself.
+      box.setFromObject(pivot); // recompute after scaling
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      gltfScene.position.x -= center.x / pivot.scale.x;
+      gltfScene.position.z -= center.z / pivot.scale.z;
+      // Y: offset so the model bottom sits at y=0 (the surface), not center
+      const boxMin = box.min;
+      gltfScene.position.y -= boxMin.y / pivot.scale.y;
+
+      pendingModel = pivot;
       modelLoaded = true;
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "[WebXRPlacementViewer] Model ready.",
+        `Bounding box: ${size.x.toFixed(3)} x ${size.y.toFixed(3)} x ${size.z.toFixed(3)} m`,
+        `Normalizing scale: ${(0.25 / largestDimension).toFixed(4)} × modelScale ${modelScale}`,
+        `Final scale: ${pivot.scale.x.toFixed(4)}`
+      );
     } catch (err) {
       setPhase("error");
       setErrorMessage("Couldn't load the 3D model.");
@@ -305,8 +353,12 @@ export function WebXRPlacementViewer({
         scene.add(placedModel);
       }
 
+      // Only copy position from the reticle pose — not quaternion.
+      // The pivot group already has a corrective inverse quaternion baked in
+      // to cancel the root node's arbitrary rotation. Overwriting it with
+      // the reticle's orientation (which encodes the floor normal, not the
+      // model's up-axis) would undo that correction and tilt the model again.
       placedModel.position.setFromMatrixPosition(reticle.matrix);
-      placedModel.quaternion.setFromRotationMatrix(reticle.matrix);
       setPhase("active-placed");
 
       // eslint-disable-next-line no-console
