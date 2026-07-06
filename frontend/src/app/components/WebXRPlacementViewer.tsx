@@ -31,6 +31,10 @@ import { T } from "./tokens.mts";
  *   4. After placement, the user can tap again to re-place, matching the
  *      common "tap elsewhere to move it" pattern. Plane visualization fades
  *      out once placed, to declutter the view.
+ *   5. After placement, the user can also press-and-drag on the surface to
+ *      slide the model around continuously, using a transient-input hit
+ *      test tied to the active touch point (see onSelectStart/onSelectEnd
+ *      and the drag block in the animation loop below).
  *
  * Note on speed: the actual scan/tracking speed is governed by ARCore's own
  * SLAM pipeline, which this component only reads from each frame — there's
@@ -231,6 +235,16 @@ export function WebXRPlacementViewer({
     let modelLoaded = false;
     let pendingModel: THREE.Object3D | null = null;
 
+    // --- Drag-to-move state ---
+    // draggingInputSource tracks which XRInputSource (touch point) is
+    // currently being held down over the placed model. dragOccurred is set
+    // true the moment we actually move the model during that press, so the
+    // subsequent 'select' event (which always fires on release, drag or not)
+    // knows to skip its own re-placement logic instead of jumping the model
+    // to the viewer-center reticle right after a drag.
+    let draggingInputSource: XRInputSource | null = null;
+    let dragOccurred = false;
+
     // Load the GLB BEFORE starting the XR session so:
     // 1. We know the model is ready before the user can tap
     // 2. Any CORS/network error surfaces before the camera opens
@@ -311,10 +325,26 @@ export function WebXRPlacementViewer({
     const viewerSpace = await session.requestReferenceSpace("viewer");
     const localSpace = await session.requestReferenceSpace("local");
     const hitTestSource = await (session as any).requestHitTestSource({ space: viewerSpace });
+    // Transient-input hit test source: gives a per-touch-point hit test each
+    // frame, independent of the viewer-center reticle above. This is what
+    // powers press-and-drag — the model follows whichever finger is down,
+    // not just the center of the screen.
+    const transientHitTestSource = await (session as any).requestHitTestSourceForTransientInput({
+      profile: "generic-touchscreen",
+    });
 
     setPhase("active-searching");
 
     function onSelect() {
+      // A drag just ended on this same press — the model has already been
+      // moved continuously to follow the finger, so skip the normal
+      // tap-to-(re)place logic below to avoid an extra jump to the
+      // viewer-center reticle.
+      if (dragOccurred) {
+        dragOccurred = false;
+        return;
+      }
+
       if (!reticle.visible) return;
       if (!modelLoaded || !pendingModel) {
         console.warn("[WebXRPlacementViewer] Tap before model ready — should not happen now.");
@@ -338,11 +368,31 @@ export function WebXRPlacementViewer({
       console.log("[WebXRPlacementViewer] Placed model at", placedModel.position, "scale", placedModel.scale);
     }
 
+    // Press-and-hold on the placed model starts a drag; releasing ends it.
+    // Only armed once a model exists — before that, taps go through the
+    // normal placement flow above instead.
+    function onSelectStart(event: any) {
+      if (placedModel) {
+        draggingInputSource = event.inputSource;
+      }
+    }
+
+    function onSelectEnd(event: any) {
+      if (draggingInputSource === event.inputSource) {
+        draggingInputSource = null;
+      }
+    }
+
     session.addEventListener("select", onSelect);
+    session.addEventListener("selectstart", onSelectStart);
+    session.addEventListener("selectend", onSelectEnd);
 
     function onSessionEnd() {
       session.removeEventListener("select", onSelect);
+      session.removeEventListener("selectstart", onSelectStart);
+      session.removeEventListener("selectend", onSelectEnd);
       hitTestSource?.cancel?.();
+      transientHitTestSource?.cancel?.();
       renderer.setAnimationLoop(null);
       for (const mesh of planeMeshes.values()) {
         scene.remove(mesh);
@@ -381,6 +431,24 @@ export function WebXRPlacementViewer({
             // a second target is being offered. Remove this guard if you'd
             // rather always allow re-placement via the reticle.
             reticle.visible = !placedModel;
+          }
+        }
+      }
+
+      // Drag-to-move: while a press is active over the placed model, follow
+      // that specific touch point's own hit test each frame so the model
+      // slides along the surface under the finger.
+      if (draggingInputSource && placedModel && transientHitTestSource) {
+        const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
+        for (const result of transientResults) {
+          if (result.inputSource === draggingInputSource && result.results.length > 0) {
+            const pose = result.results[0].getPose(localSpace);
+            if (pose) {
+              placedModel.position.setFromMatrixPosition(
+                new THREE.Matrix4().fromArray(pose.transform.matrix)
+              );
+              dragOccurred = true;
+            }
           }
         }
       }
@@ -473,7 +541,9 @@ export function WebXRPlacementViewer({
 
         {phase === "active-placed" && (
           <div style={{ ...coachStyle, top: "auto", bottom: "16%" }}>
-            <span style={{ color: T.muted, fontSize: "0.82rem" }}>Tap elsewhere to move it.</span>
+            <span style={{ color: T.muted, fontSize: "0.82rem" }}>
+              Tap elsewhere to move it, or press and drag to slide it.
+            </span>
           </div>
         )}
 
