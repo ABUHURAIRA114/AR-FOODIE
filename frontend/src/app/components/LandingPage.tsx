@@ -157,8 +157,23 @@ function NavLinkPill({ to, onClick, children, full = false }: { to: string; onCl
     </Link>
   );
 }
+// ── Plain text nav link (no background, no pill) ──────────────────
+function NavTextLink({ to, onClick, children }: { to: string; onClick?: () => void; children: React.ReactNode }) {
+  return (
+    <Link to={to} onClick={onClick}
+      style={{
+        color: T.muted, textDecoration: "none",
+        fontSize: "0.88rem", fontWeight: 600,
+        transition: "color 0.2s",
+      }}
+      onMouseEnter={e => (e.currentTarget.style.color = T.accent)}
+      onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
+      {children}
+    </Link>
+  );
+}
 
-const navLinks: [string, string][] = [["#how", "How It Works"], ["#video", "Demo"], ["#pricing", "Pricing"]];
+const navLinks: [string, string][] = [["#how", "How It Works"]];
 function Nav() {
   const [isUser, setIsUser] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -196,23 +211,25 @@ function Nav() {
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
-      background: "rgba(13,26,31,0.85)",
+      background: "rgba(9,54,50,0.85)",
       backdropFilter: "blur(14px)",
       borderBottom: `1px solid ${T.border}`,
     }}>
       {/* ── BRAND ── */}
-      <DinenicsBrandLogo />
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <DinenicsBrandLogo />
+        <span style={{ fontSize: "1.15rem", fontWeight: 800, color: T.text, letterSpacing: "-0.02em" }}>
+          Dinenics
+        </span>
+      </div>
 
       {isNarrow ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-          {/* AR Demo button — always visible in ribbon */}
-          <NavLinkPill to="/ar-viewer">AR Demo</NavLinkPill>
-
-          {/* Login / Models button — always visible in ribbon */}
+        <div style={{ display: "flex", alignItems: "center", gap: "1.1rem" }}>
+          {/* Login / Models link — always visible in ribbon */}
           {isUser ? (
-            <NavLinkPill to="/models">Models</NavLinkPill>
+            <NavTextLink to="/models">Models</NavTextLink>
           ) : (
-            <NavLinkPill to="/user-login">Log In</NavLinkPill>
+            <NavTextLink to="/user-login">Log In</NavTextLink>
           )}
 
           {/* Three-dots dropdown for the rest */}
@@ -235,7 +252,7 @@ function Nav() {
             {dropdownOpen && (
               <div style={{
                 position: "absolute", top: "calc(100% + 8px)", right: 0,
-                background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 12,
+                background: T.bg3, border: `1px solid ${T.border}`, borderRadius: 12,
                 padding: "0.5rem", minWidth: 180,
                 boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
                 zIndex: 200,
@@ -307,20 +324,23 @@ function Nav() {
               {label}
             </a>
           ))}
-          <NavLinkPill to="/ar-viewer">View AR Demo</NavLinkPill>
           {isUser ? (
-            <NavLinkPill to="/models">Models</NavLinkPill>
+            <NavTextLink to="/models">Models</NavTextLink>
           ) : (
-            <NavLinkPill to="/user-register">Register</NavLinkPill>
+            <NavTextLink to="/user-register">Register</NavTextLink>
           )}
           {isUser ? (
-            <button onClick={handleLogout} style={{ background: T.primary, color: "#fff", padding: "0.5rem 1.2rem", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, textDecoration: "none", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: `0 0 20px rgba(166,81,17,0.3)`, border: "none", cursor: "pointer" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 0 30px rgba(166,81,17,0.5)`; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 0 20px rgba(166,81,17,0.3)`; }}>
+            <button onClick={handleLogout} style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              color: T.muted, fontSize: "0.88rem", fontWeight: 600, padding: 0,
+              transition: "color 0.2s",
+            }}
+              onMouseEnter={e => (e.currentTarget.style.color = T.accent)}
+              onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
               Log Out
             </button>
           ) : (
-            <NavLinkPill to="/user-login">Log In</NavLinkPill>
+            <NavTextLink to="/user-login">Log In</NavTextLink>
           )}
         </div>
       )}
@@ -356,112 +376,104 @@ function Hero() {
           display: "flex", flexDirection: "column",
           alignItems: "center", gap: 0,
         }}>
-          {/* Plate */}
+          {/* Plate — solid two-tone: red rim, white center */}
           <div style={{
             position: "relative",
             width: isNarrow ? 210 : 250, height: isNarrow ? 210 : 250,
             borderRadius: "50%",
-            background: "radial-gradient(circle at 35% 30%, #fdfcf7 0%, #eee8d9 55%, #cfc6ae 100%)",
-            boxShadow: "0 18px 45px rgba(0,0,0,0.45), inset 0 3px 8px rgba(255,255,255,0.75), inset 0 -8px 18px rgba(0,0,0,0.18)",
+            background: "#c0392b",
+            boxShadow: "0 18px 45px rgba(0,0,0,0.45), inset 0 3px 8px rgba(255,255,255,0.25), inset 0 -8px 18px rgba(0,0,0,0.25)",
             display: "flex", alignItems: "center", justifyContent: "center",
             zIndex: 2,
           }}>
-            {/* Plate rim ring */}
+            {/* White center disc */}
             <div style={{
-              position: "absolute", inset: isNarrow ? 14 : 18,
+              position: "absolute", inset: isNarrow ? 16 : 20,
               borderRadius: "50%",
-              boxShadow: "inset 0 2px 6px rgba(0,0,0,0.1)",
-              border: "1px solid rgba(0,0,0,0.05)",
-            }} />
-
-            {/* Dinenics badge — the "dish" on the plate */}
-            <div style={{
-              width: isNarrow ? 148 : 176, height: isNarrow ? 148 : 176,
-              borderRadius: "50%",
-              background: "rgba(212,160,0,0.14)",
-              border: "2px solid rgba(245,184,0,0.55)",
-              display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center",
-              boxShadow: "0 0 40px rgba(245,184,0,0.22), 0 6px 16px rgba(0,0,0,0.25)",
-              position: "relative", zIndex: 1,
+              background: "#ffffff",
+              boxShadow: "inset 0 2px 6px rgba(0,0,0,0.08)",
+              display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <span style={{ fontSize: "clamp(1.4rem,3.2vw,1.9rem)", fontWeight: 900, color: "#f5b800", letterSpacing: "-0.03em" }}>
-                Dinenics
-              </span>
-              <span style={{ fontSize: "0.68rem", color: "rgba(232,221,208,0.6)", marginTop: "0.3rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                AR Menus
-              </span>
+              {/* Dinenics — centered on the white disc */}
+              <div style={{
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <span style={{ fontSize: "clamp(1.4rem,3.2vw,1.9rem)", fontWeight: 900, color: "#f5b800", letterSpacing: "-0.03em" }}>
+                  Dinenics
+                </span>
+                <span style={{ fontSize: "0.68rem", color: "rgba(0,0,0,0.45)", marginTop: "0.3rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  AR Menus
+                </span>
+              </div>
             </div>
           </div>
 
-          <div style={{ width: 2, height: isNarrow ? 22 : 30, background: "rgba(245,184,0,0.35)" }} />
+          {/* Connector — straight lines from plate to each button */}
+          <div style={{ position: "relative", width: "30%", height: isNarrow ? 26 : 34 }}>
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0, display: "block" }}>
+              <line x1="50" y1="0" x2="20" y2="100" stroke="rgba(245,184,0,0.5)" strokeWidth="2" />
+              <line x1="50" y1="0" x2="80" y2="100" stroke="rgba(245,184,0,0.5)" strokeWidth="2" />
+            </svg>
+          </div>
 
-          {/* Two food-shaped buttons, separated */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: isNarrow ? "1.5rem" : "2.2rem" }}>
+          {/* Two monotone minimalist food-icon buttons, separated */}
+          <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: isNarrow ? "1.4rem" : "2rem" }}>
 
-            {/* BURGER button */}
+            {/* BURGER button — minimal line icon */}
             <a href="#pricing" aria-label="Get Started" style={{
               position: "relative",
-              width: isNarrow ? 118 : 142, height: isNarrow ? 118 : 142,
-              borderRadius: "50%", overflow: "hidden",
-              display: "flex", alignItems: "flex-end", justifyContent: "center",
+              width: isNarrow ? 118 : 140, height: isNarrow ? 118 : 140,
+              borderRadius: "50%",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              gap: isNarrow ? "0.35rem" : "0.5rem",
               textDecoration: "none",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.35), 0 0 0 3px rgba(245,184,0,0.25)",
-              transition: "transform 0.25s, box-shadow 0.25s",
+              background: "rgba(245,184,0,0.06)",
+              border: "1.5px solid rgba(245,184,0,0.4)",
+              boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+              transition: "transform 0.25s, box-shadow 0.25s, border-color 0.25s",
             }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.07)"; e.currentTarget.style.boxShadow = "0 14px 40px rgba(0,0,0,0.45), 0 0 0 3px rgba(245,184,0,0.5)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35), 0 0 0 3px rgba(245,184,0,0.25)"; }}>
-              {/* top bun */}
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "34%", background: "linear-gradient(180deg,#f0b855,#c9862c)", borderRadius: "50% 50% 6% 6%" }}>
-                {[[22, 32], [42, 18], [62, 34], [78, 20], [50, 44]].map(([x, y], i) => (
-                  <div key={i} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, width: 5, height: 8, borderRadius: "50%", background: "#fff6d8", transform: "rotate(20deg)", opacity: 0.85 }} />
-                ))}
-              </div>
-              {/* lettuce */}
-              <div style={{ position: "absolute", top: "34%", left: 0, right: 0, height: "9%", background: "#5a8a34" }} />
-              {/* tomato */}
-              <div style={{ position: "absolute", top: "43%", left: 0, right: 0, height: "7%", background: "#c23b2c" }} />
-              {/* patty */}
-              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "20%", background: "linear-gradient(180deg,#6b4322,#4a2c15)" }} />
-              {/* bottom bun */}
-              <div style={{ position: "absolute", top: "70%", left: 0, right: 0, bottom: 0, background: "linear-gradient(180deg,#e0a548,#b97a24)", borderRadius: "6% 6% 50% 50%" }} />
-              {/* label */}
+              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.boxShadow = "0 14px 38px rgba(0,0,0,0.45)"; e.currentTarget.style.borderColor = "rgba(245,184,0,0.75)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 10px 28px rgba(0,0,0,0.35)"; e.currentTarget.style.borderColor = "rgba(245,184,0,0.4)"; }}>
+              <svg width={isNarrow ? 34 : 42} height={isNarrow ? 34 : 42} viewBox="0 0 24 24" fill="none" stroke="#f5b800" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4.5 9c0-3.038 3.36-5.5 7.5-5.5s7.5 2.462 7.5 5.5" />
+                <line x1="3" y1="11.25" x2="21" y2="11.25" />
+                <line x1="3" y1="14" x2="21" y2="14" />
+                <path d="M3 17h18a1 1 0 0 1 1 1 3.25 3.25 0 0 1-3.25 3.25H5.25A3.25 3.25 0 0 1 2 18a1 1 0 0 1 1-1z" />
+              </svg>
               <span style={{
-                position: "relative", zIndex: 5, marginBottom: isNarrow ? 10 : 14,
-                fontSize: isNarrow ? "0.7rem" : "0.78rem", fontWeight: 800, color: "#fff",
-                textShadow: "0 1px 4px rgba(0,0,0,0.6)", padding: "0.2rem 0.55rem",
-                background: "rgba(0,0,0,0.3)", borderRadius: 8, whiteSpace: "nowrap",
+                fontSize: isNarrow ? "0.72rem" : "0.8rem", fontWeight: 700, color: "#f5b800",
+                letterSpacing: "0.02em", whiteSpace: "nowrap",
               }}>
                 Get Started
               </span>
             </a>
 
-            {/* PIZZA button */}
+            {/* PIZZA button — minimal line icon */}
             <a href="/ar-viewer" aria-label="Watch Demo" style={{
               position: "relative",
-              width: isNarrow ? 118 : 142, height: isNarrow ? 130 : 156,
-              display: "flex", alignItems: "flex-end", justifyContent: "center",
+              width: isNarrow ? 118 : 140, height: isNarrow ? 118 : 140,
+              borderRadius: "50%",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              gap: isNarrow ? "0.35rem" : "0.5rem",
               textDecoration: "none",
-              clipPath: "polygon(50% 100%, 6% 18%, 12% 9%, 26% 4%, 50% 2%, 74% 4%, 88% 9%, 94% 18%)",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-              transition: "transform 0.25s",
+              background: "rgba(232,221,208,0.05)",
+              border: "1.5px solid rgba(232,221,208,0.3)",
+              boxShadow: "0 10px 28px rgba(0,0,0,0.3)",
+              transition: "transform 0.25s, box-shadow 0.25s, border-color 0.25s",
             }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.07)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; }}>
-              {/* crust */}
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "18%", background: "linear-gradient(180deg,#e3b164,#c48a3d)" }} />
-              {/* cheese/sauce base */}
-              <div style={{ position: "absolute", top: "16%", left: 0, right: 0, bottom: 0, background: "linear-gradient(180deg,#f7c948,#e2a52e)" }} />
-              {/* pepperoni */}
-              {[[50, 30], [35, 46], [65, 46], [50, 60], [42, 72], [58, 72]].map(([x, y], i) => (
-                <div key={i} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, width: 13, height: 13, borderRadius: "50%", background: "#a5321f", boxShadow: "inset 0 0 0 2px rgba(0,0,0,0.15)", transform: "translate(-50%,-50%)" }} />
-              ))}
-              {/* label */}
+              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.borderColor = "rgba(232,221,208,0.6)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = "rgba(232,221,208,0.3)"; }}>
+              <svg width={isNarrow ? 34 : 42} height={isNarrow ? 34 : 42} viewBox="0 0 24 24" fill="none" stroke="#e8ddd0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6.5 12 3l9 3.5L12 21 3 6.5z" />
+                <path d="M5.3 8 12 5.5 18.7 8" />
+                <circle cx="10.2" cy="10.7" r="0.9" fill="#e8ddd0" stroke="none" />
+                <circle cx="14.3" cy="12.4" r="0.9" fill="#e8ddd0" stroke="none" />
+                <circle cx="10.8" cy="14.6" r="0.9" fill="#e8ddd0" stroke="none" />
+              </svg>
               <span style={{
-                position: "relative", zIndex: 5, marginBottom: isNarrow ? 12 : 16,
-                fontSize: isNarrow ? "0.68rem" : "0.76rem", fontWeight: 800, color: "#3a2410",
-                textShadow: "0 1px 2px rgba(255,255,255,0.4)", padding: "0.2rem 0.55rem",
-                background: "rgba(255,255,255,0.4)", borderRadius: 8, whiteSpace: "nowrap",
+                fontSize: isNarrow ? "0.72rem" : "0.8rem", fontWeight: 700, color: "#e8ddd0",
+                letterSpacing: "0.02em", whiteSpace: "nowrap",
               }}>
                 Watch Demo
               </span>

@@ -126,7 +126,7 @@ export function ARViewer() {
     <div style={{ background: T.bg, color: T.text, minHeight: "100vh", fontFamily: "'Segoe UI',system-ui,sans-serif", overflowX: "hidden" }}>
 
       {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isNarrow ? "1rem 1.25rem" : "1rem 2rem", borderBottom: `1px solid ${T.border}`, background: "rgba(13,26,31,0.85)", backdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 50 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isNarrow ? "1rem 1.25rem" : "1rem 2rem", borderBottom: `1px solid ${T.border}`, background: T.bg3, backdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 50 }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", color: T.muted, fontSize: "0.88rem" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
           {!isNarrow && "Back to Dinenics"}
@@ -156,7 +156,7 @@ export function ARViewer() {
 
         {/* 3D preview */}
         <div style={{ position: "relative", background: T.bg, height: isNarrow ? "60vh" : "auto", minHeight: isNarrow ? 380 : undefined }}>
-          <div style={{ position: "absolute", top: "1.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 10, background: "rgba(13,26,31,0.7)", border: `1px solid ${T.border}`, backdropFilter: "blur(10px)", borderRadius: 999, padding: "0.4rem 1rem", fontSize: "0.78rem", color: T.muted, whiteSpace: "nowrap" }}>
+          <div style={{ position: "absolute", top: "1.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 10, background: T.bg3, border: `1px solid ${T.border}`, backdropFilter: "blur(10px)", borderRadius: 999, padding: "0.4rem 1rem", fontSize: "0.78rem", color: T.muted, whiteSpace: "nowrap" }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", boxShadow: "0 0 8px #22c55e", marginRight: "0.5rem" }} />
             Drag to rotate · 3D Preview
           </div>
