@@ -515,9 +515,9 @@ export default function CheziousARMenu() {
       color: "#fff", fontSize: "1.4rem", padding: "0.3rem",
       display: "flex", flexDirection: "column", gap: "5px", flexShrink: 0,
     }}>
-      <span style={{ display: "block", width: 22, height: 2, background: "#fff", borderRadius: 2 }} />
-      <span style={{ display: "block", width: 22, height: 2, background: "#fff", borderRadius: 2 }} />
-      <span style={{ display: "block", width: 22, height: 2, background: "#fff", borderRadius: 2 }} />
+      <span style={{ display: "block", width: 22, height: 2, background: "#660000", borderRadius: 2 }} />
+      <span style={{ display: "block", width: 22, height: 2, background: "#660000", borderRadius: 2 }} />
+      <span style={{ display: "block", width: 22, height: 2, background: "#660000", borderRadius: 2 }} />
     </button>
 
     {/* Cheezious logo center */}
@@ -646,10 +646,10 @@ export default function CheziousARMenu() {
       />
 
       {/* ── Image category grid ── */}
-      <CategoryImageGrid
+      {/* <CategoryImageGrid
         categories={CATEGORIES} active={activeCategory}
         onSelect={id => { setActiveCategory(id); setSearch(""); }} dark={dark}
-      />
+      /> */}
 
       {/* ── Main content ── */}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1.5rem 1.25rem 4rem" }}>
