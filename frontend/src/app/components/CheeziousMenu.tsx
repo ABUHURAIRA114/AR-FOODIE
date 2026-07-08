@@ -1,18 +1,10 @@
 /**
- * Cheezious AR Menu Dashboard
- * ─────────────────────────────
- * Matches Cheezious branding: dark green header, yellow accent (#FFC200), white body.
- * Category selector shows image + name cards (like image 2).
- * Dish grid shows dish cards with "Show in AR" button.
- * Dark mode toggle included.
- * Fully responsive — mobile first.
- *
- * BACKEND INTEGRATION POINTS are marked with: // [BACKEND]
- *
- * FUTURE: Restaurant self-serve dashboard (see bottom of file for plan notes)
+ * Cheezious AR Menu — Dinenics
+ * Pixel-matched to cheezious.com/menu design.
+ * [BACKEND] comments mark where to plug in Django API calls.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Dish {
@@ -22,8 +14,8 @@ interface Dish {
   price: number;
   startingPrice: boolean;
   image: string;
-  arModelUrl: string | null; // GLB file URL
-  usdzUrl: string | null;    // USDZ for iOS
+  arModelUrl: string | null;
+  usdzUrl: string | null;
   categoryId: number;
 }
 
@@ -33,139 +25,109 @@ interface Category {
   image: string;
 }
 
-// ─── Dummy Data (replace with API calls) ─────────────────────────────────────
-// [BACKEND] Replace this with: fetch('/api/cheezious/categories/') → Category[]
+// ─── Dummy Data ───────────────────────────────────────────────────────────────
+// [BACKEND] fetch('/api/cheezious/categories/') → Category[]
 const CATEGORIES: Category[] = [
-  { id: 1, name: "Thin Crust Pizza", image: "https://placehold.co/120x120/FFC200/000?text=Pizza" },
-  { id: 2, name: "Malai Tikka", image: "https://placehold.co/120x120/FFC200/000?text=Tikka" },
-  { id: 3, name: "Beef Pepperoni", image: "https://placehold.co/120x120/FFC200/000?text=Pepperoni" },
-  { id: 4, name: "Starters", image: "https://placehold.co/120x120/FFC200/000?text=Starters" },
-  { id: 5, name: "Somewhat Local", image: "https://placehold.co/120x120/FFC200/000?text=Local" },
-  { id: 6, name: "Burgers", image: "https://placehold.co/120x120/FFC200/000?text=Burgers" },
+  { id: 1, name: "Thin Crust Pizza",   image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Pizza" },
+  { id: 2, name: "Malai Tikka",        image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Tikka" },
+  { id: 3, name: "Beef Pepperoni Pizza", image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Beef" },
+  { id: 4, name: "Starters",           image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Start" },
+  { id: 5, name: "Somewhat Local",     image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Local" },
+  { id: 6, name: "Somewhat Social",    image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Social" },
+  { id: 7, name: "Burgers",            image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Burger" },
+  { id: 8, name: "Pasta",              image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Pasta" },
 ];
 
-// [BACKEND] Replace this with: fetch('/api/cheezious/dishes/?category=' + categoryId) → Dish[]
+// [BACKEND] fetch('/api/cheezious/dishes/?category='+id) → Dish[]
 const DISHES: Dish[] = [
-  { id: 1, name: "Thin Crust Beef Pizza", description: "A crispy thin crust topped with beef pepperoni, mozzarella cheese, and rich marinara sauce.", price: 1480, startingPrice: true, image: "https://placehold.co/300x220/f5f5f5/333?text=Beef+Pizza", arModelUrl: null, usdzUrl: null, categoryId: 1 },
-  { id: 2, name: "Thin Crust Veggie Pizza", description: "Cheese blend, mushrooms, sweet corn, black olives, onions, capsicum and tomatoes.", price: 1290, startingPrice: true, image: "https://placehold.co/300x220/f5f5f5/333?text=Veggie+Pizza", arModelUrl: null, usdzUrl: null, categoryId: 1 },
-  { id: 3, name: "Thin Crust Cheese Pizza", description: "Extra special mozzarella blend and signature sauce on a crispy thin crust.", price: 1290, startingPrice: true, image: "https://placehold.co/300x220/f5f5f5/333?text=Cheese+Pizza", arModelUrl: null, usdzUrl: null, categoryId: 1 },
-  { id: 4, name: "Malai Tikka Classic", description: "Tender chicken marinated in creamy malai sauce, grilled to perfection.", price: 990, startingPrice: false, image: "https://placehold.co/300x220/f5f5f5/333?text=Malai+Tikka", arModelUrl: null, usdzUrl: null, categoryId: 2 },
-  { id: 5, name: "Malai Tikka Platter", description: "Full platter with naan, raita and fresh salad on the side.", price: 1650, startingPrice: false, image: "https://placehold.co/300x220/f5f5f5/333?text=Tikka+Platter", arModelUrl: null, usdzUrl: null, categoryId: 2 },
-  { id: 6, name: "Beef Pepperoni Pizza", description: "Classic beef pepperoni with rich mozzarella and tangy tomato base.", price: 1480, startingPrice: true, image: "https://placehold.co/300x220/f5f5f5/333?text=Pepperoni", arModelUrl: null, usdzUrl: null, categoryId: 3 },
-  { id: 7, name: "Chicken Wings", description: "Crispy golden wings tossed in our signature sauce. Served with dip.", price: 890, startingPrice: false, image: "https://placehold.co/300x220/f5f5f5/333?text=Wings", arModelUrl: null, usdzUrl: null, categoryId: 4 },
-  { id: 8, name: "Mozzarella Sticks", description: "Golden fried mozzarella sticks with marinara dipping sauce.", price: 690, startingPrice: false, image: "https://placehold.co/300x220/f5f5f5/333?text=Mozz+Sticks", arModelUrl: null, usdzUrl: null, categoryId: 4 },
+  { id: 1,  name: "Thin Crust Beef Pizza",    description: "A Crispy Thin Crust Topped With Beef Pepperoni, Mozzarella Cheese, And Rich Marinara Sauce.",     price: 1480, startingPrice: true,  image: "https://placehold.co/340x240/f9f9f9/555?text=Beef+Pizza",    arModelUrl: null, usdzUrl: null, categoryId: 1 },
+  { id: 2,  name: "Thin Crust Veggie Pizza",  description: "Cheese Blend, Mushrooms, Sweet Corn, Black Olives, Onions, Capsicum And Tomatoes.",                price: 1290, startingPrice: true,  image: "https://placehold.co/340x240/f9f9f9/555?text=Veggie+Pizza",  arModelUrl: null, usdzUrl: null, categoryId: 1 },
+  { id: 3,  name: "Thin Crust Cheese Pizza",  description: "Extra Special Mozzarella Blend And Signature Sauce On A Crispy Thin Crust.",                       price: 1290, startingPrice: true,  image: "https://placehold.co/340x240/f9f9f9/555?text=Cheese+Pizza",  arModelUrl: null, usdzUrl: null, categoryId: 1 },
+  { id: 4,  name: "Malai Tikka Classic",      description: "Tender chicken marinated in creamy malai sauce, grilled to perfection.",                           price: 990,  startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Malai+Tikka",   arModelUrl: null, usdzUrl: null, categoryId: 2 },
+  { id: 5,  name: "Malai Tikka Platter",      description: "Full platter with naan, raita and fresh salad on the side.",                                       price: 1650, startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Tikka+Platter", arModelUrl: null, usdzUrl: null, categoryId: 2 },
+  { id: 6,  name: "Beef Pepperoni Pizza",     description: "Classic beef pepperoni with rich mozzarella and tangy tomato base.",                               price: 1480, startingPrice: true,  image: "https://placehold.co/340x240/f9f9f9/555?text=Pepperoni",     arModelUrl: null, usdzUrl: null, categoryId: 3 },
+  { id: 7,  name: "Chicken Wings",            description: "Crispy golden wings tossed in our signature sauce. Served with dip.",                              price: 890,  startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Wings",         arModelUrl: null, usdzUrl: null, categoryId: 4 },
+  { id: 8,  name: "Mozzarella Sticks",        description: "Golden fried mozzarella sticks with marinara dipping sauce.",                                      price: 690,  startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Mozz+Sticks",  arModelUrl: null, usdzUrl: null, categoryId: 4 },
 ];
 
-// ─── Branding config (in production this comes from restaurant's settings)
-// [BACKEND] fetch('/api/restaurant/branding/') → { primaryColor, logo, name, ... }
-const BRAND = {
-  name: "Cheezious",
-  logo: "https://cheezious.com/static/images/logo.png", // Cheezious logo
-  primaryColor: "#FFC200",       // Cheezious yellow
-  headerBg: "#1a2e1a",           // dark green header
-  accentText: "#c8341a",         // price red/orange
-  tagline: "Find in Cheezious",
-};
-
-// ─── AR Modal ─────────────────────────────────────────────────────────────────
+// ─── AR Modal (bottom sheet) ──────────────────────────────────────────────────
 function ARModal({ dish, onClose, dark }: { dish: Dish; onClose: () => void; dark: boolean }) {
-  const bg = dark ? "#1a1a1a" : "#fff";
-  const text = dark ? "#f0f0f0" : "#111";
-  const sub = dark ? "#aaa" : "#666";
-  const border = dark ? "#333" : "#eee";
-
   return (
     <div
       onClick={onClose}
       style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)",
+        position: "fixed", inset: 0, zIndex: 2000,
+        background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)",
         display: "flex", alignItems: "flex-end", justifyContent: "center",
-        padding: "0",
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: bg, width: "100%", maxWidth: 540,
-          borderRadius: "20px 20px 0 0", padding: "1.5rem",
-          boxShadow: "0 -8px 40px rgba(0,0,0,0.3)",
-          maxHeight: "90vh", overflowY: "auto",
+          background: dark ? "#1c1c1c" : "#fff",
+          width: "100%", maxWidth: 560,
+          borderRadius: "20px 20px 0 0",
+          padding: "1.5rem 1.5rem 2rem",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.25)",
+          maxHeight: "88vh", overflowY: "auto",
         }}
       >
-        {/* Handle bar */}
-        <div style={{ width: 40, height: 4, background: border, borderRadius: 2, margin: "0 auto 1.2rem" }} />
+        <div style={{ width: 36, height: 4, background: dark ? "#444" : "#ddd", borderRadius: 2, margin: "0 auto 1.2rem" }} />
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: text, fontFamily: "sans-serif" }}>{dish.name}</h2>
-            <p style={{ margin: "0.3rem 0 0", fontSize: "0.85rem", color: sub }}>{dish.description}</p>
+          <div style={{ flex: 1, paddingRight: "1rem" }}>
+            <h2 style={{ margin: "0 0 0.4rem", fontSize: "1.25rem", fontWeight: 700, color: dark ? "#fff" : "#1a1a1a", fontFamily: "'Poppins', sans-serif" }}>{dish.name}</h2>
+            <p style={{ margin: 0, fontSize: "0.875rem", color: dark ? "#aaa" : "#666", lineHeight: 1.6 }}>{dish.description}</p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.4rem", cursor: "pointer", color: sub, padding: "0 0 0 1rem" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: dark ? "#888" : "#999", padding: 0, lineHeight: 1 }}>✕</button>
         </div>
 
-        {/* model-viewer embed */}
-        {/* [BACKEND] dish.arModelUrl comes from Cloudflare R2 via Django API */}
         {dish.arModelUrl ? (
-          <div style={{ borderRadius: 12, overflow: "hidden", background: dark ? "#111" : "#f8f8f8", marginBottom: "1rem" }}>
-            {/* @ts-ignore — model-viewer is a custom element */}
+          <div style={{ borderRadius: 14, overflow: "hidden", background: dark ? "#111" : "#f5f5f5", marginBottom: "1.2rem", height: 280 }}>
+            {/* @ts-ignore */}
             <model-viewer
               src={dish.arModelUrl}
               ios-src={dish.usdzUrl || undefined}
               alt={dish.name}
-              ar
-              ar-modes="webxr scene-viewer quick-look"
-              ar-scale="auto"
-              camera-controls
-              auto-rotate
-              shadow-intensity="1"
-              style={{ width: "100%", height: 300, background: "transparent" }}
+              ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto"
+              camera-controls auto-rotate shadow-intensity="1"
+              style={{ width: "100%", height: "100%", background: "transparent" }}
             >
               {/* @ts-ignore */}
-              <button
-                slot="ar-button"
-                style={{
-                  position: "absolute", bottom: "1rem", left: "50%",
-                  transform: "translateX(-50%)",
-                  background: BRAND.primaryColor, color: "#000",
-                  border: "none", borderRadius: 10, padding: "0.7rem 1.8rem",
-                  fontWeight: 800, fontSize: "0.95rem", cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                📱 View on Your Table
+              <button slot="ar-button" style={{
+                position: "absolute", bottom: "1rem", left: "50%", transform: "translateX(-50%)",
+                background: "#FFC200", color: "#000", border: "none", borderRadius: 10,
+                padding: "0.7rem 2rem", fontWeight: 700, fontSize: "0.95rem", cursor: "pointer",
+              }}>
+                📱 View On Your Table
               </button>
             </model-viewer>
           </div>
         ) : (
           <div style={{
-            borderRadius: 12, background: dark ? "#111" : "#f8f8f8",
-            padding: "2rem", textAlign: "center", marginBottom: "1rem",
-            border: `2px dashed ${border}`,
+            borderRadius: 14, background: dark ? "#111" : "#f5f5f5",
+            padding: "2.5rem", textAlign: "center", marginBottom: "1.2rem",
+            border: `2px dashed ${dark ? "#333" : "#ddd"}`,
           }}>
-            <p style={{ color: sub, fontSize: "0.9rem", margin: 0 }}>
-              🚧 AR model coming soon for this dish
-            </p>
+            <p style={{ margin: 0, fontSize: "2rem" }}>🚧</p>
+            <p style={{ margin: "0.5rem 0 0", color: dark ? "#888" : "#999", fontSize: "0.9rem" }}>AR model coming soon</p>
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <span style={{ fontSize: "1.3rem", fontWeight: 900, color: BRAND.accentText, fontFamily: "sans-serif" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "1.3rem", fontWeight: 700, color: "#e8472a", fontFamily: "'Poppins', sans-serif" }}>
               Rs. {dish.price.toLocaleString()}
             </span>
             {dish.startingPrice && (
-              <span style={{
-                marginLeft: "0.5rem", background: BRAND.accentText, color: "#fff",
-                fontSize: "0.7rem", fontWeight: 700, padding: "0.2rem 0.5rem",
-                borderRadius: 20,
-              }}>Starting Price</span>
+              <span style={{ background: "#e8472a", color: "#fff", fontSize: "0.7rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: 20 }}>
+                Starting Price
+              </span>
             )}
           </div>
           <button onClick={onClose} style={{
-            background: BRAND.primaryColor, color: "#000", border: "none",
-            borderRadius: 10, padding: "0.6rem 1.4rem", fontWeight: 800,
-            fontSize: "0.9rem", cursor: "pointer",
+            background: "#FFC200", color: "#000", border: "none", borderRadius: 8,
+            padding: "0.55rem 1.4rem", fontWeight: 700, fontSize: "0.9rem", cursor: "pointer",
           }}>
             Close
           </button>
@@ -175,157 +137,279 @@ function ARModal({ dish, onClose, dark }: { dish: Dish; onClose: () => void; dar
   );
 }
 
-// ─── Dish Card ────────────────────────────────────────────────────────────────
+// ─── Dish Card — matches cheezious.com card exactly ───────────────────────────
 function DishCard({ dish, onShowAR, dark }: { dish: Dish; onShowAR: (d: Dish) => void; dark: boolean }) {
-  const bg = dark ? "#1e1e1e" : "#fff";
-  const text = dark ? "#f0f0f0" : "#111";
-  const sub = dark ? "#999" : "#555";
-  const border = dark ? "#2a2a2a" : "#f0f0f0";
-
   return (
     <div style={{
-      background: bg, border: `1px solid ${border}`,
-      borderRadius: 14, overflow: "hidden",
-      boxShadow: dark ? "0 2px 12px rgba(0,0,0,0.4)" : "0 2px 12px rgba(0,0,0,0.06)",
-      display: "flex", flexDirection: "column",
-      transition: "transform 0.2s, box-shadow 0.2s",
+      background: dark ? "#1e1e1e" : "#fff",
+      border: `1px solid ${dark ? "#2a2a2a" : "#ececec"}`,
+      borderRadius: 12,
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      boxShadow: dark ? "0 2px 8px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.05)",
+      transition: "box-shadow 0.2s",
       cursor: "default",
     }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)";
-        (e.currentTarget as HTMLDivElement).style.boxShadow = dark ? "0 8px 24px rgba(0,0,0,0.5)" : "0 8px 24px rgba(0,0,0,0.12)";
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-        (e.currentTarget as HTMLDivElement).style.boxShadow = dark ? "0 2px 12px rgba(0,0,0,0.4)" : "0 2px 12px rgba(0,0,0,0.06)";
-      }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = dark ? "0 6px 20px rgba(0,0,0,0.5)" : "0 6px 20px rgba(0,0,0,0.1)"; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = dark ? "0 2px 8px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.05)"; }}
     >
-      {/* Dish image */}
-      <div style={{ position: "relative", background: dark ? "#111" : "#fafafa", padding: "1rem 1rem 0" }}>
-        <img
-          src={dish.image} alt={dish.name}
-          style={{ width: "100%", height: 160, objectFit: "contain", display: "block" }}
-          onError={e => { (e.target as HTMLImageElement).src = `https://placehold.co/300x200/f5f5f5/999?text=${encodeURIComponent(dish.name)}`; }}
-        />
+      {/* Image area — white bg like cheezious */}
+      <div style={{ position: "relative", background: dark ? "#141414" : "#fff", padding: "1.2rem 1.2rem 0.5rem", textAlign: "center" }}>
+        {/* Heart icon like cheezious */}
+        <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem", color: "#e8472a", fontSize: "1.1rem", cursor: "pointer" }}>♡</div>
         {/* AR badge */}
         {dish.arModelUrl && (
           <span style={{
-            position: "absolute", top: 10, right: 10,
-            background: BRAND.primaryColor, color: "#000",
-            fontSize: "0.65rem", fontWeight: 800, padding: "0.2rem 0.5rem",
-            borderRadius: 20, letterSpacing: "0.04em",
+            position: "absolute", top: "0.75rem", left: "0.75rem",
+            background: "#FFC200", color: "#000",
+            fontSize: "0.6rem", fontWeight: 800, padding: "0.2rem 0.5rem", borderRadius: 20,
+            letterSpacing: "0.05em",
           }}>AR</span>
         )}
+        <img
+          src={dish.image} alt={dish.name}
+          style={{ width: "100%", height: 180, objectFit: "contain", display: "block" }}
+          onError={e => { (e.target as HTMLImageElement).src = `https://placehold.co/300x180/f9f9f9/aaa?text=${encodeURIComponent(dish.name)}`; }}
+        />
       </div>
 
       {/* Info */}
-      <div style={{ padding: "0.9rem 1rem 1rem", flex: 1, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-        <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: text, fontFamily: "sans-serif", lineHeight: 1.3 }}>
+      <div style={{ padding: "0.9rem 1rem 1rem", flex: 1, display: "flex", flexDirection: "column" }}>
+        <h3 style={{
+          margin: "0 0 0.4rem",
+          fontSize: "1rem", fontWeight: 700,
+          color: dark ? "#f0f0f0" : "#1a1a1a",
+          fontFamily: "'Poppins', sans-serif",
+          lineHeight: 1.3,
+          // Truncate like cheezious "Thin Crust Beef ..."
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
           {dish.name}
         </h3>
-        <p style={{ margin: 0, fontSize: "0.78rem", color: sub, lineHeight: 1.5, flex: 1,
-          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+        <p style={{
+          margin: "0 0 0.75rem", fontSize: "0.82rem",
+          color: dark ? "#999" : "#888",
+          lineHeight: 1.55, flex: 1,
+          display: "-webkit-box", WebkitLineClamp: 3,
+          WebkitBoxOrient: "vertical" as const, overflow: "hidden",
+          fontFamily: "'Poppins', sans-serif",
         }}>
           {dish.description}
         </p>
 
-        {/* Price */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.3rem" }}>
-          <span style={{ fontSize: "1rem", fontWeight: 900, color: BRAND.accentText, fontFamily: "sans-serif" }}>
+        {/* Price row */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+          <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "#e8472a", fontFamily: "'Poppins', sans-serif" }}>
             Rs. {dish.price.toLocaleString()}
           </span>
           {dish.startingPrice && (
             <span style={{
-              background: BRAND.accentText, color: "#fff",
-              fontSize: "0.65rem", fontWeight: 700, padding: "0.15rem 0.45rem", borderRadius: 20,
-            }}>Starting Price</span>
+              background: "#e8472a", color: "#fff",
+              fontSize: "0.65rem", fontWeight: 600,
+              padding: "0.18rem 0.55rem", borderRadius: 20,
+              fontFamily: "'Poppins', sans-serif",
+            }}>
+              Starting Price
+            </span>
           )}
         </div>
 
-        {/* Show in AR button */}
+        {/* Show in AR button — replaces "Add to Cart" */}
         <button
           onClick={() => onShowAR(dish)}
           style={{
-            marginTop: "0.5rem",
-            background: dish.arModelUrl ? BRAND.primaryColor : (dark ? "#2a2a2a" : "#f5f5f5"),
-            color: dish.arModelUrl ? "#000" : sub,
-            border: "none", borderRadius: 8,
-            padding: "0.6rem", width: "100%",
-            fontWeight: 800, fontSize: "0.85rem", cursor: "pointer",
-            fontFamily: "sans-serif", transition: "opacity 0.15s",
+            width: "100%",
+            background: dish.arModelUrl ? "#FFC200" : (dark ? "#2a2a2a" : "#f5f5f5"),
+            color: dish.arModelUrl ? "#000" : (dark ? "#666" : "#aaa"),
+            border: `1px solid ${dish.arModelUrl ? "#FFC200" : (dark ? "#333" : "#e0e0e0")}`,
+            borderRadius: 8, padding: "0.65rem",
+            fontWeight: 700, fontSize: "0.9rem",
+            cursor: "pointer", fontFamily: "'Poppins', sans-serif",
+            transition: "opacity 0.15s",
+            letterSpacing: "0.01em",
           }}
           onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
           onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
         >
-          {dish.arModelUrl ? "📱 Show in AR" : "⏳ Coming Soon"}
+          {dish.arModelUrl ? "+ SHOW IN AR" : "+ COMING SOON"}
         </button>
       </div>
     </div>
   );
 }
 
-// ─── Category Selector ────────────────────────────────────────────────────────
-function CategorySelector({ categories, active, onSelect, dark }: {
+// ─── Horizontal text-only category bar (top bar like cheezious) ───────────────
+function TopCategoryBar({ categories, active, onSelect, dark }: {
   categories: Category[]; active: number; onSelect: (id: number) => void; dark: boolean;
 }) {
-  const bg = dark ? "#1e1e1e" : "#fff";
-  const border = dark ? "#2a2a2a" : "#eee";
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (dir: "left" | "right") => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
+    }
+  };
 
   return (
     <div style={{
-      display: "flex", gap: "0.75rem", overflowX: "auto", padding: "1rem 1rem 0.5rem",
-      scrollbarWidth: "none", msOverflowStyle: "none",
+      background: dark ? "#1a1a1a" : "#fff",
+      borderBottom: `1px solid ${dark ? "#2a2a2a" : "#ececec"}`,
+      position: "sticky", top: 68, zIndex: 90,
     }}>
-      {categories.map(cat => (
+      <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", display: "flex", alignItems: "center" }}>
+        {/* Left arrow */}
         <button
-          key={cat.id}
-          onClick={() => onSelect(cat.id)}
+          onClick={() => scroll("left")}
           style={{
-            flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center",
-            gap: "0.5rem", background: bg, border: `2px solid ${active === cat.id ? BRAND.primaryColor : border}`,
-            borderRadius: 14, padding: "0.6rem 0.8rem", cursor: "pointer",
-            minWidth: 90, transition: "border-color 0.2s, box-shadow 0.2s",
-            boxShadow: active === cat.id ? `0 0 0 1px ${BRAND.primaryColor}` : "none",
+            position: "absolute", left: 0, zIndex: 2,
+            width: 32, height: 32, borderRadius: "50%",
+            border: `1.5px solid ${dark ? "#444" : "#ddd"}`,
+            background: dark ? "#1a1a1a" : "#fff",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: dark ? "#ccc" : "#888",
+            fontSize: "0.8rem", flexShrink: 0,
+          }}
+        >‹</button>
+
+        {/* Scrollable category pills */}
+        <div
+          ref={scrollRef}
+          style={{
+            display: "flex", gap: 0, overflowX: "auto",
+            scrollbarWidth: "none", padding: "0 40px",
+            flex: 1,
           }}
         >
-          <img
-            src={cat.image} alt={cat.name}
-            style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10 }}
-            onError={e => { (e.target as HTMLImageElement).src = `https://placehold.co/64x64/FFC200/000?text=${encodeURIComponent(cat.name[0])}`; }}
-          />
-          <span style={{
-            fontSize: "0.72rem", fontWeight: active === cat.id ? 800 : 600,
-            color: active === cat.id ? BRAND.primaryColor : (dark ? "#ccc" : "#333"),
-            textAlign: "center", fontFamily: "sans-serif", lineHeight: 1.2,
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 80,
-          }}>
-            {cat.name.toUpperCase()}
-          </span>
-        </button>
-      ))}
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => onSelect(cat.id)}
+              style={{
+                flexShrink: 0,
+                background: active === cat.id ? "#FFC200" : "transparent",
+                color: active === cat.id ? "#000" : (dark ? "#ccc" : "#1a1a1a"),
+                border: "none",
+                borderRadius: active === cat.id ? 8 : 0,
+                padding: "0.85rem 1.3rem",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                cursor: "pointer",
+                fontFamily: "'Poppins', sans-serif",
+                whiteSpace: "nowrap",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Right arrow */}
+        <button
+          onClick={() => scroll("right")}
+          style={{
+            position: "absolute", right: 0, zIndex: 2,
+            width: 32, height: 32, borderRadius: "50%",
+            border: `1.5px solid ${dark ? "#444" : "#ddd"}`,
+            background: dark ? "#1a1a1a" : "#fff",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: dark ? "#ccc" : "#888",
+            fontSize: "0.8rem", flexShrink: 0,
+          }}
+        >›</button>
+      </div>
     </div>
   );
 }
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
+// ─── Image category grid (second row like image 2 you shared) ─────────────────
+function CategoryImageGrid({ categories, active, onSelect, dark }: {
+  categories: Category[]; active: number; onSelect: (id: number) => void; dark: boolean;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scroll = (dir: "left" | "right") => {
+    scrollRef.current?.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
+  };
+
+  return (
+    <div style={{
+      background: dark ? "#141414" : "#f9f9f9",
+      borderBottom: `1px solid ${dark ? "#222" : "#ececec"}`,
+      padding: "1rem 0",
+    }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", display: "flex", alignItems: "center", padding: "0 1rem" }}>
+        <button onClick={() => scroll("left")} style={{
+          flexShrink: 0, width: 32, height: 32, borderRadius: "50%",
+          border: `1.5px solid ${dark ? "#444" : "#ddd"}`,
+          background: dark ? "#1a1a1a" : "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", color: dark ? "#ccc" : "#888", fontSize: "0.85rem",
+          marginRight: "0.5rem",
+        }}>‹</button>
+
+        <div ref={scrollRef} style={{ display: "flex", gap: "0.75rem", overflowX: "auto", scrollbarWidth: "none", flex: 1 }}>
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => onSelect(cat.id)}
+              style={{
+                flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center",
+                gap: "0.5rem", background: dark ? "#1e1e1e" : "#fff",
+                border: `2px solid ${active === cat.id ? "#FFC200" : (dark ? "#2a2a2a" : "#ececec")}`,
+                borderRadius: 12, padding: "0.6rem 0.8rem",
+                cursor: "pointer", minWidth: 90,
+                transition: "border-color 0.15s",
+              }}
+            >
+              <img
+                src={cat.image} alt={cat.name}
+                style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }}
+                onError={e => { (e.target as HTMLImageElement).src = `https://placehold.co/64x64/FFC200/1a2e1a?text=${encodeURIComponent(cat.name[0])}`; }}
+              />
+              <span style={{
+                fontSize: "0.68rem", fontWeight: 700,
+                color: active === cat.id ? "#FFC200" : (dark ? "#bbb" : "#333"),
+                fontFamily: "'Poppins', sans-serif",
+                textAlign: "center", lineHeight: 1.2,
+                maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {cat.name.toUpperCase()}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <button onClick={() => scroll("right")} style={{
+          flexShrink: 0, width: 32, height: 32, borderRadius: "50%",
+          border: `1.5px solid ${dark ? "#444" : "#ddd"}`,
+          background: dark ? "#1a1a1a" : "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", color: dark ? "#ccc" : "#888", fontSize: "0.85rem",
+          marginLeft: "0.5rem",
+        }}>›</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function CheziousARMenu() {
   const [dark, setDark] = useState(false);
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id);
   const [search, setSearch] = useState("");
   const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
-  const [logoError, setLogoError] = useState(false);
-
-  // Auto dark mode based on system preference
+  const [scrolled, setScrolled] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setDark(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+  const onScroll = () => setScrolled(window.scrollY > 10);
+  window.addEventListener("scroll", onScroll);
+  return () => window.removeEventListener("scroll", onScroll);
+}, []);
 
-  // [BACKEND] Replace filter logic with API call when search/category changes:
-  // fetch(`/api/cheezious/dishes/?category=${activeCategory}&search=${search}`)
+
+  // [BACKEND] Replace with: fetch(`/api/cheezious/dishes/?category=${activeCategory}&search=${search}`)
   const visibleDishes = DISHES.filter(d => {
     const matchCat = d.categoryId === activeCategory;
     const matchSearch = search === "" ||
@@ -334,223 +418,314 @@ export default function CheziousARMenu() {
     return matchCat && matchSearch;
   });
 
-  const pageBg = dark ? "#121212" : "#f8f8f8";
-  const cardBg = dark ? "#1e1e1e" : "#fff";
-  const textColor = dark ? "#f0f0f0" : "#111";
-  const subColor = dark ? "#888" : "#666";
-  const inputBg = dark ? "#1e1e1e" : "#fff";
-  const inputBorder = dark ? "#333" : "#ddd";
+  const pageBg = dark ? "#111" : "#f5f5f5";
+  const navBg = dark ? "#f7f5f5" : "#f7f5f5"; // always dark green like cheezious
 
   return (
-    <div style={{ background: pageBg, minHeight: "100vh", fontFamily: "sans-serif", color: textColor }}>
+    <div style={{ background: pageBg, minHeight: "100vh", fontFamily: "'Poppins', sans-serif" }}>
 
-      {/* model-viewer script — needed for AR */}
-      {/* [BACKEND] This script is already in your index.html, no change needed */}
+      {/* Google Fonts — Poppins (cheezious uses this) */}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" />
 
-      {/* ── Header ── */}
-      <header style={{
-        background: BRAND.headerBg, position: "sticky", top: 0, zIndex: 100,
-        boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
-      }}>
-        <div style={{
-          maxWidth: 1100, margin: "0 auto", padding: "0 1rem",
-          display: "flex", alignItems: "center", gap: "1rem", height: 60,
-        }}>
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
-            {!logoError ? (
-              <img
-                src={BRAND.logo} alt={BRAND.name}
-                height={36} style={{ objectFit: "contain" }}
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <span style={{ color: BRAND.primaryColor, fontWeight: 900, fontSize: "1.2rem" }}>{BRAND.name}</span>
-            )}
-          </div>
+  <header style={{
+  background: navBg,
+  position: "sticky", top: 0, zIndex: 100,
+  height: 68,
+  display: "flex", alignItems: "center",
+  transition: "box-shadow 0.3s",
+  boxShadow: scrolled ? "0 4px 20px rgba(0,0,0,0.4)" : "none",
+}}>
 
-          {/* Search */}
-          <div style={{ flex: 1, position: "relative" }}>
-            <span style={{ position: "absolute", left: "0.8rem", top: "50%", transform: "translateY(-50%)", color: subColor, pointerEvents: "none", fontSize: "0.9rem" }}>🔍</span>
-            <input
-              type="text"
-              placeholder={BRAND.tagline}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{
-                width: "100%", padding: "0.55rem 0.8rem 0.55rem 2.2rem",
-                borderRadius: 8, border: `1px solid ${inputBorder}`,
-                background: inputBg, color: textColor,
-                fontSize: "0.88rem", outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
+  {/* ── Desktop navbar ── */}
+  <div className="nav-desktop" style={{
+    width: "100%",
+    padding: "0 1rem 0 0",
+    display: "flex", alignItems: "center", gap: "0.75rem",
+  }}>
+    <div style={{ flexShrink: 0 }}>
+      <img src="/logos/cheezious.png" alt="Cheezious" height={44} style={{ objectFit: "contain", display: "block" }} />
+    </div>
 
-          {/* Dark mode toggle */}
-          <button
-            onClick={() => setDark(d => !d)}
-            title="Toggle dark mode"
-            style={{
-              background: dark ? "#333" : "rgba(255,255,255,0.1)",
-              border: "none", borderRadius: 8,
-              padding: "0.45rem 0.7rem", cursor: "pointer",
-              fontSize: "1rem", flexShrink: 0, color: "#fff",
-              transition: "background 0.2s",
-            }}
-          >
-            {dark ? "☀️" : "🌙"}
-          </button>
+    <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+      <span style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "#999", fontSize: "0.9rem", pointerEvents: "none" }}>🔍</span>
+      <input
+        type="text" placeholder="Find in Cheezious"
+        value={search} onChange={e => setSearch(e.target.value)}
+        style={{
+          width: "100%", padding: "0.6rem 1rem 0.6rem 2.4rem",
+          borderRadius: 8, border: "1px solid #ddd",
+          background: "#fff", color: "#1a1a1a",
+          fontSize: "0.95rem", outline: "none",
+          fontFamily: "'Poppins', sans-serif",
+          boxSizing: "border-box" as const,
+          transition: "box-shadow 0.2s",
+        }}
+        onFocus={e => e.target.style.boxShadow = "0 0 0 2px #FFC200"}
+        onBlur={e => e.target.style.boxShadow = "none"}
+      />
+    </div>
 
-          {/* Powered by Dinenics */}
-          <a
-            href="https://dinenics.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              flexShrink: 0, background: BRAND.primaryColor, color: "#000",
-              padding: "0.4rem 0.8rem", borderRadius: 8,
-              fontSize: "0.7rem", fontWeight: 800, textDecoration: "none",
-              whiteSpace: "nowrap", display: "none", // visible on md+
-            }}
-            className="powered-badge"
-          >
-            Powered by Dinenics
-          </a>
-        </div>
-      </header>
+    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexShrink: 0 }}>
+      <button onClick={() => setDark(d => !d)} style={{
+        background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
+        borderRadius: 8, padding: "0.5rem 0.65rem",
+        cursor: "pointer", fontSize: "1rem", color: "#fff", transition: "background 0.2s",
+      }}
+        onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+        onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+      >{dark ? "☀️" : "🌙"}</button>
 
-      {/* ── Category Selector ── */}
-      <div style={{ background: cardBg, borderBottom: `1px solid ${dark ? "#2a2a2a" : "#eee"}` }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <CategorySelector
-            categories={CATEGORIES}
-            active={activeCategory}
-            onSelect={id => { setActiveCategory(id); setSearch(""); }}
-            dark={dark}
-          />
-        </div>
+      <button style={{
+        background: "#fff", color: "#1a2e1a", border: "2px solid #FFC200",
+        borderRadius: 8, padding: "0.5rem 1rem",
+        fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
+        fontFamily: "'Poppins', sans-serif",
+        display: "flex", alignItems: "center", gap: "0.35rem",
+        transition: "background 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s",
+        flexShrink: 0, whiteSpace: "nowrap",
+      }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = "#FFC200";
+          e.currentTarget.style.color = "#000";
+          e.currentTarget.style.transform = "translateY(-1px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(255,194,0,0.4)";
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = "#fff";
+          e.currentTarget.style.color = "#1a2e1a";
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "none";
+        }}
+      >👤 LOGIN</button>
+
+      <div style={{ borderLeft: "1px solid rgba(255,255,255,0.15)", paddingLeft: "0.6rem", flexShrink: 0 }}>
+        <img src="/logos/dinenics.png" alt="Dinenics" height={28} style={{ objectFit: "contain", display: "block", maxWidth: 90 }} />
+      </div>
+    </div>
+  </div>
+
+  {/* ── Mobile navbar ── */}
+  <div className="nav-mobile" style={{
+    width: "100%", padding: "0 1rem",
+    display: "none", alignItems: "center",
+  }}>
+    {/* Hamburger left */}
+    <button onClick={() => setSidebarOpen(true)} style={{
+      background: "none", border: "none", cursor: "pointer",
+      color: "#fff", fontSize: "1.4rem", padding: "0.3rem",
+      display: "flex", flexDirection: "column", gap: "5px", flexShrink: 0,
+    }}>
+      <span style={{ display: "block", width: 22, height: 2, background: "#fff", borderRadius: 2 }} />
+      <span style={{ display: "block", width: 22, height: 2, background: "#fff", borderRadius: 2 }} />
+      <span style={{ display: "block", width: 22, height: 2, background: "#fff", borderRadius: 2 }} />
+    </button>
+
+    {/* Cheezious logo center */}
+    <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+      <img src="/logos/cheezious.png" alt="Cheezious" height={38} style={{ objectFit: "contain" }} />
+    </div>
+
+    {/* Search icon right */}
+    <button
+      onClick={() => {
+        const el = document.getElementById("mobile-search-bar");
+        if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+      }}
+      style={{
+        background: "none", border: "none", cursor: "pointer",
+        color: "#fff", fontSize: "1.2rem", padding: "0.3rem", flexShrink: 0,
+      }}
+    >🔍</button>
+  </div>
+
+  {/* Mobile search bar — slides down when tapped */}
+  <div id="mobile-search-bar" style={{
+    display: "none", position: "absolute", top: 68, left: 0, right: 0,
+    background: navBg, padding: "0.75rem 1rem",
+    borderTop: "1px solid rgba(255,255,255,0.1)", zIndex: 99,
+  }}>
+    <input
+      type="text" placeholder="Find in Cheezious"
+      value={search} onChange={e => setSearch(e.target.value)}
+      style={{
+        width: "100%", padding: "0.6rem 1rem",
+        borderRadius: 8, border: "1px solid #ddd",
+        background: "#fff", color: "#1a1a1a",
+        fontSize: "0.95rem", outline: "none",
+        fontFamily: "'Poppins', sans-serif",
+        boxSizing: "border-box" as const,
+      }}
+    />
+  </div>
+</header>
+
+
+{/* ── Mobile Sidebar ── */}
+{sidebarOpen && (
+  <div
+    onClick={() => setSidebarOpen(false)}
+    style={{
+      position: "fixed", inset: 0, zIndex: 3000,
+      background: "rgba(0,0,0,0.5)", backdropFilter: "blur(3px)",
+    }}
+  >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: "absolute", right: 0, top: 0, bottom: 0,
+        width: 260, background: dark ? "#1a1a1a" : "#fff",
+        padding: "1.5rem 1.25rem",
+        display: "flex", flexDirection: "column", gap: "1.5rem",
+        boxShadow: "-8px 0 30px rgba(0,0,0,0.2)",
+      }}
+    >
+      {/* Close */}
+      <button
+        onClick={() => setSidebarOpen(false)}
+        style={{
+          alignSelf: "flex-end", background: "none", border: "none",
+          fontSize: "1.4rem", cursor: "pointer",
+          color: dark ? "#fff" : "#333",
+        }}
+      >✕</button>
+
+      {/* Dinenics logo */}
+      <div style={{ textAlign: "center", paddingBottom: "1rem", borderBottom: `1px solid ${dark ? "#333" : "#eee"}` }}>
+        <img src="/logos/dinenics.png" alt="Dinenics" height={36} style={{ objectFit: "contain" }} />
+        <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem", color: dark ? "#888" : "#999", fontFamily: "'Poppins', sans-serif" }}>
+          AR Menu powered by Dinenics
+        </p>
       </div>
 
-      {/* ── Category title ── */}
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1.2rem 1rem 0.5rem" }}>
-        <h2 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 900, color: textColor }}>
+      {/* Login button */}
+      <button style={{
+        background: "#FFC200", color: "#000", border: "none",
+        borderRadius: 10, padding: "0.75rem",
+        fontWeight: 700, fontSize: "1rem", cursor: "pointer",
+        fontFamily: "'Poppins', sans-serif",
+        display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+      }}>
+        👤 Login
+      </button>
+
+      {/* Dark mode toggle */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0.75rem 1rem",
+        background: dark ? "#2a2a2a" : "#f5f5f5",
+        borderRadius: 10,
+      }}>
+        <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: "0.9rem", fontWeight: 600, color: dark ? "#fff" : "#333" }}>
+          {dark ? "🌙 Dark Mode" : "☀️ Light Mode"}
+        </span>
+        <button
+          onClick={() => setDark(d => !d)}
+          style={{
+            width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
+            background: dark ? "#FFC200" : "#ddd",
+            position: "relative", transition: "background 0.2s",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{
+            position: "absolute", top: 3,
+            left: dark ? 23 : 3,
+            width: 18, height: 18, borderRadius: "50%",
+            background: "#fff", transition: "left 0.2s",
+          }} />
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+      {/* ── Top text category bar (exactly like cheezious) ── */}
+      <TopCategoryBar
+        categories={CATEGORIES} active={activeCategory}
+        onSelect={id => { setActiveCategory(id); setSearch(""); }} dark={dark}
+      />
+
+      {/* ── Image category grid ── */}
+      <CategoryImageGrid
+        categories={CATEGORIES} active={activeCategory}
+        onSelect={id => { setActiveCategory(id); setSearch(""); }} dark={dark}
+      />
+
+      {/* ── Main content ── */}
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1.5rem 1.25rem 4rem" }}>
+
+        {/* Category title like cheezious */}
+        <h2 style={{
+          margin: "0 0 1.25rem",
+          fontSize: "1.3rem", fontWeight: 700,
+          color: dark ? "#f0f0f0" : "#1a1a1a",
+          fontFamily: "'Poppins', sans-serif",
+        }}>
           {CATEGORIES.find(c => c.id === activeCategory)?.name}
         </h2>
-        {search && (
-          <p style={{ margin: "0.3rem 0 0", fontSize: "0.85rem", color: subColor }}>
-            {visibleDishes.length} result{visibleDishes.length !== 1 ? "s" : ""} for "{search}"
-          </p>
-        )}
-      </div>
 
-      {/* ── Dish Grid ── */}
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "0.8rem 1rem 3rem" }}>
+        {/* Dish grid */}
         {visibleDishes.length > 0 ? (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-            gap: "1rem",
-          }}>
+         <div className="dish-grid">
             {visibleDishes.map(dish => (
               <DishCard key={dish.id} dish={dish} onShowAR={setSelectedDish} dark={dark} />
             ))}
           </div>
         ) : (
-          <div style={{ textAlign: "center", padding: "4rem 1rem", color: subColor }}>
-            <p style={{ fontSize: "2rem", margin: "0 0 0.5rem" }}>🍽️</p>
-            <p style={{ fontSize: "1rem", fontWeight: 600 }}>No dishes found</p>
-            <p style={{ fontSize: "0.85rem" }}>Try a different category or search term</p>
+          <div style={{ textAlign: "center", padding: "5rem 1rem", color: dark ? "#666" : "#bbb" }}>
+            <p style={{ fontSize: "2.5rem", margin: "0 0 0.5rem" }}>🍽️</p>
+            <p style={{ fontSize: "1rem", fontWeight: 600, fontFamily: "'Poppins', sans-serif" }}>No dishes found</p>
+            <p style={{ fontSize: "0.85rem", marginTop: "0.3rem" }}>Try a different category or clear your search</p>
           </div>
         )}
-      </main>
+      </div>
 
       {/* ── Footer ── */}
       <footer style={{
-        background: BRAND.headerBg, color: "rgba(255,255,255,0.5)",
-        textAlign: "center", padding: "1rem",
-        fontSize: "0.75rem",
+        background: "#1a2e1a", color: "rgba(255,255,255,0.45)",
+        textAlign: "center", padding: "1.1rem",
+        fontSize: "0.78rem", fontFamily: "'Poppins', sans-serif",
       }}>
         AR Menu powered by{" "}
-        <a href="https://dinenics.com" style={{ color: BRAND.primaryColor, textDecoration: "none", fontWeight: 700 }}>
+        <a href="https://dinenics.com" style={{ color: "#FFC200", textDecoration: "none", fontWeight: 700 }}>
           Dinenics.com
         </a>
       </footer>
 
       {/* ── AR Modal ── */}
-      {selectedDish && (
-        <ARModal dish={selectedDish} onClose={() => setSelectedDish(null)} dark={dark} />
-      )}
+      {selectedDish && <ARModal dish={selectedDish} onClose={() => setSelectedDish(null)} dark={dark} />}
 
-      {/* ── Responsive styles ── */}
-      <style>{`
-        * { box-sizing: border-box; }
-        body { margin: 0; }
-        input::placeholder { color: #999; }
-        ::-webkit-scrollbar { display: none; }
+      {/* ── Global styles ── */}
+     <style>{`
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  ::-webkit-scrollbar { display: none; }
+  input::placeholder { color: #aaa; font-family: 'Poppins', sans-serif; }
 
-        @media (min-width: 640px) {
-          .powered-badge {
-            display: inline-block !important;
-          }
-        }
+  .nav-desktop { display: flex !important; }
+  .nav-mobile  { display: none !important; }
 
-        @media (max-width: 480px) {
-          /* tighter grid on small phones */
-          main > div {
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
-          }
-        }
-      `}</style>
+  .dish-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+
+  @media (max-width: 640px) {
+    .nav-desktop { display: none !important; }
+    .nav-mobile  { display: flex !important; }
+
+    .dish-grid {
+      grid-template-columns: 1fr 1fr !important;
+      gap: 0.65rem !important;
+    }
+  }
+
+  @media (max-width: 340px) {
+    .dish-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+`}</style>
     </div>
   );
 }
-
-/*
-──────────────────────────────────────────────────────────────────────────────
-FUTURE: Restaurant Self-Serve Dashboard Plan
-──────────────────────────────────────────────────────────────────────────────
-
-When restaurants want to create their own AR menu without coding, build this flow:
-
-1. ONBOARDING FORM (React multi-step form)
-   Step 1 — Branding
-     - Restaurant name
-     - Logo upload (stored in Cloudflare R2)
-     - Primary color picker (hex)
-     - Header background color picker
-
-   Step 2 — Categories
-     - Add category: name + image upload
-     - Reorder via drag and drop
-
-   Step 3 — Dishes
-     - For each dish: name, description, price, image, AR model (GLB upload)
-     - Mark as "Starting Price" toggle
-     - Assign to category
-
-   Step 4 — Preview + Publish
-     - Live preview of their menu
-     - Publish button → generates unique URL: dinenics.com/menu/restaurant-slug
-
-2. DJANGO BACKEND CHANGES NEEDED
-   - RestaurantProfile model (name, slug, primaryColor, headerBg, logoUrl)
-   - Category model (name, image, restaurantId)
-   - Dish model already exists as Scene — add categoryId + restaurantId FK
-   - New API endpoints:
-     GET  /api/menu/{slug}/                → full menu data for a restaurant
-     POST /api/restaurant/onboard/         → create restaurant + branding
-     POST /api/restaurant/dishes/          → add dish with GLB upload to R2
-     GET  /api/restaurant/dashboard/       → list all their dishes + QR codes
-
-3. DYNAMIC BRANDING
-   - Pass BRAND config from API instead of hardcoded const
-   - CSS variables for primaryColor so it applies everywhere dynamically
-   - Each restaurant gets their own slug URL
-
-4. QR CODE
-   - Each restaurant's menu URL: dinenics.com/menu/cheezious
-   - QR code generated pointing to this URL
-   - Restaurant downloads QR and puts it on physical menu
-──────────────────────────────────────────────────────────────────────────────
-*/
