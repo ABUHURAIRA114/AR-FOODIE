@@ -394,7 +394,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
             </button>
 
             <div style={{ borderLeft: "1px solid #ddd", paddingLeft: "0.6rem", flexShrink: 0 }}>
-              <img src="/logos/dinenics.png" alt="Dinenics" height={32} style={{ objectFit: "contain", display: "block", maxWidth: 100 }} />
+              <img src="/logos/dinenics.png" alt="Dinenics" height={40} style={{ objectFit: "contain", display: "block", maxWidth: 190 }} />
             </div>
           </div>
         </div>
