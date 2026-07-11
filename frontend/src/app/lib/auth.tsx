@@ -21,13 +21,20 @@ async function readJsonResponse(res: Response) {
   return text ? JSON.parse(text) : {};
 }
 
-export async function registerRequest(username: string, password: string) {
+export async function registerRequest(
+  username: string, 
+  password: string,
+  businessName: string,
+  ownerName: string,
+  phone: string,
+  city: string
+) {
   const csrfToken = await getCsrfToken();
   const res = await fetch(`${API_URL}/api/user-register/`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, businessName, ownerName, phone, city }),
   });
 
   const data = await readJsonResponse(res);

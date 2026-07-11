@@ -1,3 +1,5 @@
+from dashboardMenu.models import Restaurant
+
 from .models import Scene, Feedback
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_POST
@@ -7,7 +9,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.middleware.csrf import get_token
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
-
+import re
 
 def home(request):
     models = Scene.objects.all().order_by('-created_at')
@@ -202,13 +204,48 @@ def user_me_view(request):
 @require_POST
 def user_register_view(request):
     data = json.loads(request.body)
-    username = data.get('username')
-    password = data.get('password')
-    if not username or not password:
-        return JsonResponse({'error': 'Username and password are required.'}, status=400)
+
+    username      = data.get('username')
+    password      = data.get('password')
+    business_name = data.get('business_name')
+    owner_name    = data.get('owner_name')
+    phone         = data.get('phone')
+    city          = data.get('city')
+
+    if not all([username, password, business_name, phone]):
+        return JsonResponse({'error': 'All fields are required.'}, status=400)
+
     if User.objects.filter(username=username).exists():
         return JsonResponse({'error': 'Username already exists.'}, status=400)
+    
+    # Phone validation — must be unique
+    if Restaurant.objects.filter(phone=phone).exists():
+        return JsonResponse({'error': 'An account with this phone number already exists.'}, status=400)
+
+    # Phone format — Pakistani numbers
+    if not re.match(r'^(03\d{9}|\+923\d{9})$', phone):
+        return JsonResponse({'error': 'Enter a valid Pakistani phone number e.g. 03001234567'}, status=400)
+
+    # Password strength
+    if len(password) < 8:
+        return JsonResponse({'error': 'Password must be at least 8 characters.'}, status=400)
+    if not re.search(r'[A-Za-z]', password):
+        return JsonResponse({'error': 'Password must include at least one letter.'}, status=400)
+    if not re.search(r'\d', password):
+        return JsonResponse({'error': 'Password must include at least one number.'}, status=400)
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return JsonResponse({'error': 'Password must include at least one special character e.g @,#,$.'}, status=400)
+
     user = User.objects.create_user(username=username, password=password)
+
+    Restaurant.objects.create(
+        owner=user,
+        business_name=business_name,
+        owner_name=owner_name,
+        phone=phone,
+        city=city,
+    )
+
     login(request, user)
     return JsonResponse({'success': True, 'username': user.username})
 
