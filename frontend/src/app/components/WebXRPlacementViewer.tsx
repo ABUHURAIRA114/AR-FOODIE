@@ -43,6 +43,14 @@ import { T } from "./tokens.mts";
  * (detected planes) as soon as it exists, rather than leaving the user
  * staring at a blank camera feed with no feedback until a hit-test succeeds.
  *
+ * Flashlight/torch note: while an immersive-ar session owns the camera, most
+ * browsers won't grant a second getUserMedia stream for the same physical
+ * camera, so torch control is attempted best-effort only. On devices/
+ * browsers that allow it, tapping the torch button acquires a camera track
+ * and toggles its `torch` constraint. On devices that don't allow concurrent
+ * access, the attempt fails silently and the button hides itself so it
+ * doesn't sit there looking broken.
+ *
  * Requires:
  *  - HTTPS (a secure context, same requirement as model-viewer's WebXR path)
  *  - A WebXR-capable browser (effectively Chrome on Android with ARCore;
@@ -82,6 +90,16 @@ export function WebXRPlacementViewer({
   const [phase, setPhase] = useState<SessionPhase>("checking-support");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [domOverlaySupported, setDomOverlaySupported] = useState(true);
+
+  // --- Flashlight/torch state ---
+  // Best-effort only: while an immersive-ar session owns the camera, most
+  // browsers won't grant a second getUserMedia stream for the same device,
+  // so this may simply fail on many phones. torchSupported starts as
+  // "unknown" (null) and flips to false permanently after a failed attempt,
+  // so the button disappears instead of looking broken.
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState<boolean | null>(null);
+  const torchTrackRef = useRef<MediaStreamTrack | null>(null);
 
   // --- Feature-detect WebXR + hit-test support up front ---
   useEffect(() => {
@@ -138,6 +156,47 @@ export function WebXRPlacementViewer({
         setPhase("error");
         setErrorMessage("Couldn't start AR on this device.");
       }
+    }
+  }
+
+  // --- Flashlight/torch toggle ---
+  async function toggleTorch() {
+    // Already have a track — just flip it.
+    if (torchTrackRef.current) {
+      try {
+        const next = !torchOn;
+        await torchTrackRef.current.applyConstraints({
+          advanced: [{ torch: next } as any],
+        });
+        setTorchOn(next);
+      } catch {
+        setTorchSupported(false);
+      }
+      return;
+    }
+
+    // First tap — try to acquire a torch-capable camera track.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      const track = stream.getVideoTracks()[0];
+      const caps: any = track.getCapabilities?.() ?? {};
+
+      if (!caps.torch) {
+        track.stop();
+        setTorchSupported(false);
+        return;
+      }
+
+      await track.applyConstraints({ advanced: [{ torch: true } as any] });
+      torchTrackRef.current = track;
+      setTorchSupported(true);
+      setTorchOn(true);
+    } catch {
+      // Most likely the camera is busy (owned by the XR session) or the
+      // device/browser doesn't support torch control at all.
+      setTorchSupported(false);
     }
   }
 
@@ -404,6 +463,12 @@ export function WebXRPlacementViewer({
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
+      // Release torch/camera track if one was acquired during this session.
+      if (torchTrackRef.current) {
+        torchTrackRef.current.stop();
+        torchTrackRef.current = null;
+      }
+      setTorchOn(false);
       sessionRef.current = null;
       setPhase("idle");
     }
@@ -464,6 +529,10 @@ export function WebXRPlacementViewer({
   useEffect(() => {
     return () => {
       sessionRef.current?.end();
+      if (torchTrackRef.current) {
+        torchTrackRef.current.stop();
+        torchTrackRef.current = null;
+      }
     };
   }, []);
 
@@ -527,6 +596,40 @@ export function WebXRPlacementViewer({
             aria-label="Exit AR"
           >
             ✕
+          </button>
+        )}
+
+        {/* Flashlight/torch toggle — top-left corner, mirrors the exit
+            button on the right. Only shown once the XR session is actually
+            running, and hides itself permanently if a toggle attempt fails
+            (torchSupported === false), since concurrent camera access during
+            an immersive-ar session isn't reliably supported across devices. */}
+        {torchSupported !== false && (phase === "active-searching" || phase === "active-placed") && (
+          <button
+            onClick={toggleTorch}
+            style={{
+              position: "absolute",
+              top: "1.2rem",
+              left: "1.2rem",
+              background: torchOn ? T.accent : "rgba(13,26,31,0.75)",
+              color: torchOn ? "#0d1a1f" : T.text,
+              border: `1px solid ${T.border}`,
+              borderRadius: 999,
+              width: 36,
+              height: 36,
+              fontSize: "1rem",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s, color 0.2s",
+            }}
+            aria-label={torchOn ? "Turn off flashlight" : "Turn on flashlight"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill={torchOn ? "#0d1a1f" : "currentColor"}>
+              <path d="M9 2v6.59L6.59 11H8v11l7-11h-2.41L15 8.59V2H9z" />
+            </svg>
           </button>
         )}
 

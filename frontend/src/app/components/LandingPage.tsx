@@ -132,7 +132,7 @@ function DinenicsBrandLogo() {
     >
       {/* Premium Stand-out Square Badge Container */}
       <div style={{
-        background: "#051419",
+        background: T.bg3,
         padding: "0rem 0rem",
         borderRadius: 14,
         display: "flex",
@@ -401,6 +401,7 @@ function Hero() {
             position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)",
             zIndex: 0, userSelect: "none", pointerEvents: "none",
             display: "flex", flexDirection: "column", alignItems: "center",
+            
           }}>
             <span style={{
               fontSize: "clamp(3rem, 9.5vw, 6.5rem)", fontWeight: 900, letterSpacing: "0.04em",
@@ -420,14 +421,18 @@ function Hero() {
           <img
             src={manAtTable}
             alt="Customer at a table about to scan an AR menu"
-            style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", objectFit: "contain", display: "block", pointerEvents: "none" }}
+            style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", objectFit: "contain", display: "block", pointerEvents: "none",
+              border: `3px solid ${T.accent}`, borderRadius: 10, background: "transparent",
+            transition: "border-color 0.2s, background 0.2s, transform 0.2s"
+             }}
+            
           />
           {/* PRICING hotspot — hollow bg3-outlined box, cash image, tap badge */}
           <a href="#pricing" aria-label="View pricing" style={{
             position: "absolute", top: "55%", left: "20%", zIndex: 4,
             width: "14%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            border: `3px solid ${T.bg3}`, borderRadius: 12, background: "transparent",
+            border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
             transition: "border-color 0.2s, background 0.2s, transform 0.2s",
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = "rgba(21,88,80,0.35)"; e.currentTarget.style.transform = "translate(-50%,-50%) scale(1.06)"; }}
@@ -443,7 +448,7 @@ function Hero() {
             position: "absolute", top: "55%", left: "47%", zIndex: 4,
             width: "25%", aspectRatio: "1 / .4", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            border: `3px solid ${T.bg3}`, borderRadius: 12, background: "transparent",
+            border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
             transition: "border-color 0.2s, background 0.2s, transform 0.2s",
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = "rgba(21,88,80,0.35)"; e.currentTarget.style.transform = "translate(-50%,-50%) scale(1.06)"; }}
@@ -458,7 +463,7 @@ function Hero() {
             position: "absolute", top: "64%", left: "72%", zIndex: 4,
             width: "19%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            border: `3px solid ${T.bg3}`, borderRadius: 12, background: "transparent",
+            border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
             transition: "border-color 0.2s, background 0.2s, transform 0.2s",
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = "rgba(21,88,80,0.35)"; e.currentTarget.style.transform = "translate(-50%,-50%) scale(1.06)"; }}
@@ -494,11 +499,11 @@ function Hero() {
             Turn your food photos into interactive 3D AR models. Customers see your dish on their table before they order.
           </p>
 
-          <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: isNarrow ? "center" : "flex-start" }}>
+          <div style={{ marginTop: "2rem", display: "flex", justifyContent: isNarrow ? "center" : "flex-start" }}>
             <a href="#feedback" style={{
               display: "inline-flex", alignItems: "center", gap: "0.5rem",
               background: "transparent", color: T.accent,
-              border: `1.5px solid ${T.accent}`, padding: "0.7rem 1.4rem",
+              border: `2px solid ${T.accent}`, padding: "1rem 2rem",
               borderRadius: 10, fontSize: "0.9rem", fontWeight: 700,
               textDecoration: "none", transition: "background 0.2s, transform 0.2s",
             }}
@@ -514,12 +519,14 @@ function Hero() {
       </div>
 
       {/* Scroll hint */}
-      <div style={{ position: "absolute", bottom: "2.5rem", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem", color: "rgba(232,221,208,0.4)", fontSize: "0.75rem" }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" opacity={0.5}>
-          <path d="M12 5v14M5 12l7 7 7-7" />
-        </svg>
-        Scroll
-      </div>
+      {!isNarrow && (
+        <div style={{ position: "absolute", bottom: "2.5rem", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem", color: "rgba(232,221,208,0.4)", fontSize: "0.75rem" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" opacity={0.5}>
+            <path d="M12 5v14M5 12l7 7 7-7" />
+          </svg>
+          Scroll
+        </div>
+      )}
     </section>
   );
 }
