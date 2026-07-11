@@ -43,6 +43,11 @@ export default defineConfig({
         target: 'https://dinenics-api.up.railway.app',
         changeOrigin: true,
       },
+
+      '/menu-api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
     },
   },
 })
