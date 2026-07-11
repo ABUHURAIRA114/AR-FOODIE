@@ -3,6 +3,10 @@ import { HeroBurger } from "./HeroBurger";
 import { Link, useNavigate } from "react-router";
 import { checkUserAuth, logoutRequest } from "../lib/auth";
 import logo from "../../assets/logo.webp";
+import manAtTable from "../../assets/ManNTable.png";
+import pizzaAsset from "../../assets/Pizza.png";
+import cashAsset from "../../assets/Cash.png";
+import qrAsset from "../../assets/QR.png";
 import { T } from "./tokens.mts";
 
 
@@ -30,6 +34,23 @@ function SectionLabel({ children }: { children: string }) {
     <p style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: T.accent, marginBottom: "0.5rem" }}>
       {children}
     </p>
+  );
+}
+
+// ── Small circular "tap here" cursor badge for image hotspots ─────
+function TapBadge() {
+  return (
+    <div style={{
+      position: "absolute", top: -8, right: -8, zIndex: 6,
+      width: 24, height: 24, borderRadius: "50%",
+      background: T.bg3, border: `1.5px solid ${T.accent}`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      boxShadow: "0 3px 8px rgba(0,0,0,0.35)",
+    }}>
+      <svg width="12" height="12" viewBox="0 0 24 24">
+        <path d="M4 3l16.5 6.7-7 2.6-2.6 7z" fill={T.accent} />
+      </svg>
+    </div>
   );
 }
 
@@ -141,22 +162,6 @@ function DinenicsBrandLogo() {
 }
 
 // ── NAV ───────────────────────────────────────────────────────────
-function NavLinkPill({ to, onClick, children, full = false }: { to: string; onClick?: () => void; children: React.ReactNode; full?: boolean }) {
-  return (
-    <Link to={to} onClick={onClick}
-      style={{
-        background: T.primary, color: "#fff", padding: full ? "0.85rem 1.2rem" : "0.5rem 1.2rem",
-        borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, textDecoration: "none",
-        transition: "transform 0.2s, box-shadow 0.2s", boxShadow: `0 0 20px rgba(166,81,17,0.3)`,
-        display: full ? "block" : "inline-block", textAlign: full ? "center" : "left",
-        width: full ? "100%" : "auto",
-      }}
-      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 0 30px rgba(166,81,17,0.5)`; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 0 20px rgba(166,81,17,0.3)`; }}>
-      {children}
-    </Link>
-  );
-}
 // ── Plain text nav link (no background, no pill) ──────────────────
 function NavTextLink({ to, onClick, children }: { to: string; onClick?: () => void; children: React.ReactNode }) {
   return (
@@ -363,141 +368,107 @@ function Hero() {
       <div style={{
         position: "relative", zIndex: 10,
         display: "grid",
-        gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr",
+        gridTemplateColumns: isNarrow ? "1fr" : "1.5fr 1fr",
         alignItems: "center",
-        width: "100%", maxWidth: 1300,
+        width: "100%", maxWidth: 1450,
         padding: isNarrow ? "0 1.5rem" : "0 3rem",
-        gap: isNarrow ? "2.5rem" : "4rem",
+        gap: isNarrow ? "2.5rem" : "3rem",
         textAlign: isNarrow ? "center" : "left",
       }}>
 
-        {/* LEFT — Plate with badge + food-shaped buttons */}
+        {/* LEFT — Table scene: DINENICS + AR MENU wordmark + shoppable-hotspot buttons */}
         <div style={{
-          display: "flex", flexDirection: "column",
-          alignItems: "center", gap: 0,
+          position: "relative", width: "100%", maxWidth: 900, margin: "0 auto",
+          aspectRatio: "1155 / 806",
         }}>
-          {/* Plate — solid two-tone: red rim, white center */}
+
+          {/* Big DINENICS + AR MENU wordmark sitting behind the scene */}
           <div style={{
-            position: "relative",
-            width: isNarrow ? 210 : 250, height: isNarrow ? 210 : 250,
-            borderRadius: "50%",
-            background: "#c0392b",
-            boxShadow: "0 18px 45px rgba(0,0,0,0.45), inset 0 3px 8px rgba(255,255,255,0.25), inset 0 -8px 18px rgba(0,0,0,0.25)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 2,
+            position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)",
+            zIndex: 0, userSelect: "none", pointerEvents: "none",
+            display: "flex", flexDirection: "column", alignItems: "center",
           }}>
-            {/* White center disc */}
-            <div style={{
-              position: "absolute", inset: isNarrow ? 16 : 20,
-              borderRadius: "50%",
-              background: "#ffffff",
-              boxShadow: "inset 0 2px 6px rgba(0,0,0,0.08)",
-              display: "flex", alignItems: "center", justifyContent: "center",
+            <span style={{
+              fontSize: "clamp(3rem, 9.5vw, 6.5rem)", fontWeight: 900, letterSpacing: "0.04em",
+              color: T.accentL, whiteSpace: "nowrap", lineHeight: 1,
             }}>
-              {/* Dinenics — centered on the white disc */}
-              <div style={{
-                display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "center",
-              }}>
-                <span style={{ fontSize: "clamp(1.4rem,3.2vw,1.9rem)", fontWeight: 900, color: "#f5b800", letterSpacing: "-0.03em" }}>
-                  Dinenics
-                </span>
-                <span style={{ fontSize: "0.68rem", color: "rgba(0,0,0,0.45)", marginTop: "0.3rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  AR Menus
-                </span>
-              </div>
-            </div>
+              DINENICS
+            </span>
+            <span style={{
+              fontSize: "clamp(1.1rem, 3vw, 2rem)", fontWeight: 800, letterSpacing: "0.3em",
+              color: "rgba(245,184,0,0.18)", whiteSpace: "nowrap", marginTop: "0.6rem",
+            }}>
+              AR MENU
+            </span>
           </div>
 
-          {/* Connector — straight lines from plate to each button */}
-          <div style={{ position: "relative", width: "30%", height: isNarrow ? 26 : 34 }}>
-            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0, display: "block" }}>
-              <line x1="50" y1="0" x2="20" y2="100" stroke="rgba(245,184,0,0.5)" strokeWidth="2" />
-              <line x1="50" y1="0" x2="80" y2="100" stroke="rgba(245,184,0,0.5)" strokeWidth="2" />
-            </svg>
-          </div>
+          {/* The 3D table scene render (backdrop only — not clickable) */}
+          <img
+            src={manAtTable}
+            alt="Customer at a table about to scan an AR menu"
+            style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", objectFit: "contain", display: "block", pointerEvents: "none" }}
+          />
 
-          {/* Two monotone minimalist food-icon buttons, separated */}
-          <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: isNarrow ? "1.4rem" : "2rem" }}>
+          {/* PRICING hotspot — hollow bg3-outlined box, cash image, tap badge */}
+          <Link to="#pricing" aria-label="View pricing" style={{
+            position: "absolute", top: "55%", left: "20%", zIndex: 4,
+            width: "14%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: `3px solid ${T.bg3}`, borderRadius: 12, background: "transparent",
+            transition: "border-color 0.2s, background 0.2s, transform 0.2s",
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = "rgba(21,88,80,0.35)"; e.currentTarget.style.transform = "translate(-50%,-50%) scale(1.06)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.bg3; e.currentTarget.style.background = "transparent"; e.currentTarget.style.transform = "translate(-50%,-50%)"; }}>
+            <img src={cashAsset} alt="Pricing" style={{ width: "100%", display: "block" }} />
+            <TapBadge />
+          </Link>
 
-            {/* BURGER button — minimal line icon */}
-            <a href="#pricing" aria-label="Get Started" style={{
-              position: "relative",
-              width: isNarrow ? 118 : 140, height: isNarrow ? 118 : 140,
-              borderRadius: "50%",
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              gap: isNarrow ? "0.35rem" : "0.5rem",
-              textDecoration: "none",
-              background: "rgba(245,184,0,0.06)",
-              border: "1.5px solid rgba(245,184,0,0.4)",
-              boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
-              transition: "transform 0.25s, box-shadow 0.25s, border-color 0.25s",
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.boxShadow = "0 14px 38px rgba(0,0,0,0.45)"; e.currentTarget.style.borderColor = "rgba(245,184,0,0.75)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 10px 28px rgba(0,0,0,0.35)"; e.currentTarget.style.borderColor = "rgba(245,184,0,0.4)"; }}>
-              <svg width={isNarrow ? 34 : 42} height={isNarrow ? 34 : 42} viewBox="0 0 24 24" fill="none" stroke="#f5b800" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4.5 9c0-3.038 3.36-5.5 7.5-5.5s7.5 2.462 7.5 5.5" />
-                <line x1="3" y1="11.25" x2="21" y2="11.25" />
-                <line x1="3" y1="14" x2="21" y2="14" />
-                <path d="M3 17h18a1 1 0 0 1 1 1 3.25 3.25 0 0 1-3.25 3.25H5.25A3.25 3.25 0 0 1 2 18a1 1 0 0 1 1-1z" />
-              </svg>
-              <span style={{
-                fontSize: isNarrow ? "0.72rem" : "0.8rem", fontWeight: 700, color: "#f5b800",
-                letterSpacing: "0.02em", whiteSpace: "nowrap",
-              }}>
-                Get Started
-              </span>
-            </a>
+          {/* DEMO hotspot — hollow bg3-outlined box, pizza (AR model) image, tap badge */}
+          <Link to="/ar-viewer" aria-label="Watch the AR demo" style={{
+            position: "absolute", top: "55%", left: "47%", zIndex: 4,
+            width: "25%", aspectRatio: "1 / .4", transform: "translate(-50%,-50%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: `3px solid ${T.bg3}`, borderRadius: 12, background: "transparent",
+            transition: "border-color 0.2s, background 0.2s, transform 0.2s",
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = "rgba(21,88,80,0.35)"; e.currentTarget.style.transform = "translate(-50%,-50%) scale(1.06)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.bg3; e.currentTarget.style.background = "transparent"; e.currentTarget.style.transform = "translate(-50%,-50%)"; }}>
+            <img src={pizzaAsset} alt="Watch demo" style={{ width: "100%", display: "block" }} />
+            <TapBadge />
+          </Link>
 
-            {/* PIZZA button — minimal line icon */}
-            <a href="/ar-viewer" aria-label="Watch Demo" style={{
-              position: "relative",
-              width: isNarrow ? 118 : 140, height: isNarrow ? 118 : 140,
-              borderRadius: "50%",
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              gap: isNarrow ? "0.35rem" : "0.5rem",
-              textDecoration: "none",
-              background: "rgba(232,221,208,0.05)",
-              border: "1.5px solid rgba(232,221,208,0.3)",
-              boxShadow: "0 10px 28px rgba(0,0,0,0.3)",
-              transition: "transform 0.25s, box-shadow 0.25s, border-color 0.25s",
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.borderColor = "rgba(232,221,208,0.6)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = "rgba(232,221,208,0.3)"; }}>
-              <svg width={isNarrow ? 34 : 42} height={isNarrow ? 34 : 42} viewBox="0 0 24 24" fill="none" stroke="#e8ddd0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6.5 12 3l9 3.5L12 21 3 6.5z" />
-                <path d="M5.3 8 12 5.5 18.7 8" />
-                <circle cx="10.2" cy="10.7" r="0.9" fill="#e8ddd0" stroke="none" />
-                <circle cx="14.3" cy="12.4" r="0.9" fill="#e8ddd0" stroke="none" />
-                <circle cx="10.8" cy="14.6" r="0.9" fill="#e8ddd0" stroke="none" />
-              </svg>
-              <span style={{
-                fontSize: isNarrow ? "0.72rem" : "0.8rem", fontWeight: 700, color: "#e8ddd0",
-                letterSpacing: "0.02em", whiteSpace: "nowrap",
-              }}>
-                Watch Demo
-              </span>
-            </a>
-          </div>
+          {/* MENUS hotspot — hollow bg3-outlined box, QR image, tap badge */}
+          <Link to="/ar-viewer" aria-label="View the menu" style={{
+            position: "absolute", top: "64%", left: "72%", zIndex: 4,
+            width: "19%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: `3px solid ${T.bg3}`, borderRadius: 12, background: "transparent",
+            transition: "border-color 0.2s, background 0.2s, transform 0.2s",
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = "rgba(21,88,80,0.35)"; e.currentTarget.style.transform = "translate(-50%,-50%) scale(1.06)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.bg3; e.currentTarget.style.background = "transparent"; e.currentTarget.style.transform = "translate(-50%,-50%)"; }}>
+            <img src={qrAsset} alt="View menu" style={{ width: "80%", display: "block" }} />
+            <TapBadge />
+          </Link>
         </div>
 
-        {/* RIGHT — tagline */}
+        {/* RIGHT — tagline (kept smaller/secondary so the scene reads first) */}
         <div>
-          <p style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f5b800", marginBottom: "1rem" }}>
+          <p style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f5b800", marginBottom: "0.75rem" }}>
             AR Menu Technology
           </p>
           <h1 style={{
-            fontSize: "clamp(2.2rem,5.5vw,4rem)", fontWeight: 900,
-            lineHeight: 1.08, letterSpacing: "-0.03em",
-            color: "#fff", marginBottom: "1.4rem",
+            fontSize: "clamp(1.6rem,3.4vw,2.5rem)", fontWeight: 900,
+            lineHeight: 1.12, letterSpacing: "-0.02em",
+            color: "#fff", marginBottom: "1rem",
           }}>
             Make Your Menu<br />
             <span style={{ color: "#f5b800" }}>Come Alive</span>
           </h1>
           <p style={{
-            fontSize: "clamp(0.95rem,2vw,1.15rem)", fontWeight: 500,
-            color: "rgba(232,221,208,0.75)", lineHeight: 1.75,
-            maxWidth: 5000,
+            fontSize: "clamp(0.82rem,1.3vw,0.95rem)", fontWeight: 500,
+            color: "rgba(232,221,208,0.7)", lineHeight: 1.65,
+            maxWidth: 1000,
             margin: isNarrow ? "0 auto" : "0 0 0 auto",
           }}>
             Turn your food photos into interactive 3D AR models. Customers see your dish on their table before they order.

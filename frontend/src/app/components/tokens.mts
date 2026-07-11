@@ -1,8 +1,8 @@
 
 export const T = {
   bg: "#105851",
-  bg2: "#964040",
-  bg3: "#11423d",
+  bg2: " #105851",
+  bg3: " #0a4943",
   primary: "#c9762f",
   primaryL: "#e0954a",
   accent: "#f2b705",
