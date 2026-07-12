@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { HeroBurger } from "./HeroBurger";
 import { Link, useNavigate } from "react-router";
 import { checkUserAuth, logoutRequest } from "../lib/auth";
 import logo from "../../assets/logo.webp";
@@ -141,8 +140,8 @@ function DinenicsBrandLogo() {
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 184, 0, 0.15)",
         border: "1px solid rgba(255, 255, 255, 0.03)",
         /* Ensure the container doesn't grow */
-        width: "55px",
-        height: "55px",
+        width: "45px",
+        height: "45px",
         overflow: "hidden"
       }}>
         <img
@@ -372,9 +371,13 @@ function Hero() {
 
   return (
     <section id="hero" style={{
-      position: "relative", height: "100vh", minHeight: 600,
+      position: "relative",
+      minHeight: "100vh",
       display: "flex", alignItems: "center", justifyContent: "center",
       overflow: "hidden",
+      boxSizing: "border-box",
+      paddingTop: isNarrow ? "6.5rem" : "5.5rem",
+      paddingBottom: isNarrow ? "2rem" : 0,
     }}>
       {/* <HeroBurger />
       <div style={{ position: "absolute", inset: 0, background: "rgba(13,26,31,0.52)", pointerEvents: "none" }} /> */}
@@ -482,7 +485,7 @@ function Hero() {
             AR Menu Technology
           </p>
           <h1 style={{
-            fontSize: "clamp(3rem,3.4vw,2.5rem)", fontWeight: 900,
+            fontSize: !isNarrow? "clamp(3rem,3.4vw,2.5rem)" :  "clamp(1.6rem,3.4vw,2.5rem)", fontWeight: 900,
             lineHeight: 1.12, letterSpacing: "-0.02em",
             color: "#fff", marginBottom: "1rem",
           }}>
@@ -519,14 +522,14 @@ function Hero() {
       </div>
 
       {/* Scroll hint */}
-      {!isNarrow && (
+      {/* {!isNarrow && (
         <div style={{ position: "absolute", bottom: "2.5rem", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem", color: "rgba(232,221,208,0.4)", fontSize: "0.75rem" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" opacity={0.5}>
             <path d="M12 5v14M5 12l7 7 7-7" />
           </svg>
           Scroll
         </div>
-      )}
+      )} */}
     </section>
   );
 }
@@ -1059,15 +1062,6 @@ function Footer() {
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-        </svg>
-      ),
-      label: "Dinenics",
-      href: "https://linkedin.com/company/dinenics",
-    },
-    {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.91-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
         </svg>
       ),
       label: "@dinenics",
