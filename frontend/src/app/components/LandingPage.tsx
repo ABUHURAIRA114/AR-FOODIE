@@ -215,7 +215,7 @@ function Nav() {
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
-      background: "rgba(9,54,50,0.85)",
+      background: T.bg3,
       backdropFilter: "blur(14px)",
       borderBottom: `1px solid ${T.border}`,
     }}>
@@ -380,7 +380,7 @@ function Hero() {
       paddingBottom: isNarrow ? "2rem" : 0,
     }}>
       {/* <HeroBurger />
-      <div style={{ position: "absolute", inset: 0, background: "rgba(13,26,31,0.52)", pointerEvents: "none" }} /> */}
+      <div style={{ position: "absolute", inset: 0, background: T.bg3, pointerEvents: "none" }} /> */}
 
       <div style={{
         position: "relative", zIndex: 10,
@@ -396,7 +396,7 @@ function Hero() {
         {/* LEFT — Table scene: DINENICS + AR MENU wordmark + shoppable-hotspot buttons */}
         <div style={{
           position: "relative", width: "100%", maxWidth: 900, margin: "0 auto",
-          aspectRatio: "1155 / 806",
+          aspectRatio: "1150 / 806",
         }}>
 
           {/* Big DINENICS + AR MENU wordmark sitting behind the scene */}
@@ -424,7 +424,7 @@ function Hero() {
           <img
             src={manAtTable}
             alt="Customer at a table about to scan an AR menu"
-            style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", objectFit: "contain", display: "block", pointerEvents: "none",
+            style={{ position: "relative", zIndex: 1, width: "100%", height: "95%", objectFit: "contain", display: "block", pointerEvents: "none",
               border: `3px solid ${T.accent}`, borderRadius: 10, background: "transparent",
             transition: "border-color 0.2s, background 0.2s, transform 0.2s"
              }}
@@ -432,7 +432,7 @@ function Hero() {
           />
           {/* PRICING hotspot — hollow bg3-outlined box, cash image, tap badge */}
           <a href="#pricing" aria-label="View pricing" style={{
-            position: "absolute", top: "55%", left: "20%", zIndex: 4,
+            position: "absolute", top: "53%", left: "20%", zIndex: 4,
             width: "14%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
@@ -448,7 +448,7 @@ function Hero() {
 
           {/* DEMO hotspot — hollow bg3-outlined box, pizza (AR model) image, tap badge */}
           <Link to="/ar-viewer" aria-label="Watch the AR demo" style={{
-            position: "absolute", top: "55%", left: "47%", zIndex: 4,
+            position: "absolute", top: "52%", left: "47%", zIndex: 4,
             width: "25%", aspectRatio: "1 / .4", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
@@ -463,7 +463,7 @@ function Hero() {
 
           {/* MENUS hotspot — hollow bg3-outlined box, QR image, tap badge */}
           <Link to="/ar-viewer" aria-label="View the menu" style={{
-            position: "absolute", top: "64%", left: "72%", zIndex: 4,
+            position: "absolute", top: "61%", left: "72%", zIndex: 4,
             width: "19%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
