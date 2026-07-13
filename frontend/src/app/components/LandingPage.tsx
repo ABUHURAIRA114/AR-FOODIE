@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { checkUserAuth, logoutRequest } from "../lib/auth";
 import logo from "../../assets/logo.webp";
-import manAtTable from "../../assets/ManNTable.png";
-import pizzaAsset from "../../assets/Pizza.png";
-import cashAsset from "../../assets/Cash.png";
-import qrAsset from "../../assets/QR.png";
+import manAtTable from "../../assets/ManNTable.webp";
+import pizzaAsset from "../../assets/Pizza.webp";
+import cashAsset from "../../assets/Cash.webp";
+import qrAsset from "../../assets/QR.webp";
 import { T } from "./tokens.mts";
 
 
@@ -424,7 +424,7 @@ function Hero() {
           <img
             src={manAtTable}
             alt="Customer at a table about to scan an AR menu"
-            style={{ position: "relative", zIndex: 1, width: "100%", height: "95%", objectFit: "contain", display: "block", pointerEvents: "none",
+            style={{ position: "relative", zIndex: 1, width: "95%", height: "105%", objectFit: "contain", display: "block", pointerEvents: "none",
               border: `3px solid ${T.accent}`, borderRadius: 10, background: "transparent",
             transition: "border-color 0.2s, background 0.2s, transform 0.2s"
              }}
@@ -432,7 +432,7 @@ function Hero() {
           />
           {/* PRICING hotspot — hollow bg3-outlined box, cash image, tap badge */}
           <a href="#pricing" aria-label="View pricing" style={{
-            position: "absolute", top: "53%", left: "20%", zIndex: 4,
+            position: "absolute", top: "50%", left: "20%", zIndex: 4,
             width: "14%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
@@ -448,7 +448,7 @@ function Hero() {
 
           {/* DEMO hotspot — hollow bg3-outlined box, pizza (AR model) image, tap badge */}
           <Link to="/ar-viewer" aria-label="Watch the AR demo" style={{
-            position: "absolute", top: "52%", left: "47%", zIndex: 4,
+            position: "absolute", top: "50%", left: "47%", zIndex: 4,
             width: "25%", aspectRatio: "1 / .4", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
@@ -463,7 +463,7 @@ function Hero() {
 
           {/* MENUS hotspot — hollow bg3-outlined box, QR image, tap badge */}
           <Link to="/ar-viewer" aria-label="View the menu" style={{
-            position: "absolute", top: "61%", left: "72%", zIndex: 4,
+            position: "absolute", top: "61%", left: "71%", zIndex: 4,
             width: "19%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",

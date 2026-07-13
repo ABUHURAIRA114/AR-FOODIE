@@ -43,6 +43,14 @@ import { T } from "./tokens.mts";
  * (detected planes) as soon as it exists, rather than leaving the user
  * staring at a blank camera feed with no feedback until a hit-test succeeds.
  *
+ * Entry flow: this component auto-starts the XR session as soon as support
+ * is confirmed, reusing the user-activation from whatever click/tap sent the
+ * user here (e.g. SceneViewer's "View in AR" button) — no second "Start AR"
+ * button is shown on entry. A manual "Enter AR" button only reappears as a
+ * fallback if that reused activation isn't accepted (NotAllowedError) or
+ * after a session ends, since re-entering AR at that point requires a fresh
+ * tap per the WebXR spec's transient-activation requirement.
+ *
  * Requires:
  *  - HTTPS (a secure context, same requirement as model-viewer's WebXR path)
  *  - A WebXR-capable browser (effectively Chrome on Android with ARCore;
@@ -83,11 +91,17 @@ export function WebXRPlacementViewer({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [domOverlaySupported, setDomOverlaySupported] = useState(true);
 
-  // --- Feature-detect WebXR + hit-test support up front ---
+  // --- Feature-detect WebXR + hit-test support, then go straight into AR ---
+  // No intermediate "Start AR" tap here: the click that navigated the user
+  // into this component (e.g. SceneViewer's "View in AR" button) is the
+  // activation we ride on. If requestSession rejects because that
+  // activation didn't carry over (NotAllowedError), startSession() below
+  // falls back to phase "idle", which does show a manual button — that's
+  // the one unavoidable case where a second tap is required.
   useEffect(() => {
     let cancelled = false;
 
-    async function checkSupport() {
+    async function checkSupportAndStart() {
       if (!("xr" in navigator)) {
         if (!cancelled) setPhase("unsupported");
         return;
@@ -95,16 +109,21 @@ export function WebXRPlacementViewer({
       try {
         const supported = await (navigator as any).xr.isSessionSupported("immersive-ar");
         if (cancelled) return;
-        setPhase(supported ? "idle" : "unsupported");
+        if (supported) {
+          startSession();
+        } else {
+          setPhase("unsupported");
+        }
       } catch {
         if (!cancelled) setPhase("unsupported");
       }
     }
 
-    checkSupport();
+    checkSupportAndStart();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function startSession() {
@@ -133,7 +152,11 @@ export function WebXRPlacementViewer({
       await runArSession(session);
     } catch (err: any) {
       if (err?.name === "NotAllowedError") {
-        setPhase("denied");
+        // Most likely cause here: the transient user-activation from the
+        // originating click didn't carry over to this requestSession call.
+        // Fall back to a manual button so the user's next tap supplies a
+        // fresh activation.
+        setPhase("idle");
       } else {
         setPhase("error");
         setErrorMessage("Couldn't start AR on this device.");
@@ -405,6 +428,9 @@ export function WebXRPlacementViewer({
         container.removeChild(renderer.domElement);
       }
       sessionRef.current = null;
+      // Session ended (user backed out via the system AR UI, or we called
+      // endSession() ourselves). Re-entering AR from here requires a fresh
+      // tap, so land on "idle" rather than auto-restarting.
       setPhase("idle");
     }
     session.addEventListener("end", onSessionEnd);
@@ -588,7 +614,7 @@ export function WebXRPlacementViewer({
               boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
             }}
           >
-            Start AR
+            Enter AR
           </button>
         </div>
       )}
