@@ -356,7 +356,7 @@ function Nav() {
 function HotspotLabel({ children }: { children: string }) {
   return (
     <span style={{
-      position: "absolute", bottom: "80%", left: 35, transform: "translateX(-50%)",
+      position: "absolute", bottom: "10%", left: "50%", transform: "translateX(-50%)",
       fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
       color: T.accent, whiteSpace: "nowrap",
       textShadow: "0 2px 6px rgba(0,0,0,0.6)",

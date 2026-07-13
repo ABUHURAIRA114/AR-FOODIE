@@ -47,6 +47,9 @@ export function SceneViewer() {
   // const [imageTrackingActive, setImageTrackingActive] = useState(false);
 
   // Custom tap-to-place WebXR path, separate from model-viewer's AR entirely.
+  // This is our top-priority AR entry point (see render below): when the
+  // browser supports WebXR immersive-ar + hit-test, we use OUR OWN flow
+  // instead of deferring to Scene Viewer / Quick Look.
   const [webXrActive, setWebXrActive] = useState(false);
   const [webXrSupported, setWebXrSupported] = useState(false);
 
@@ -344,37 +347,49 @@ export function SceneViewer() {
       )}
 
       {/*
-        Custom tap-to-place WebXR entry point. Independent of model-viewer's
-        AR button (which now only covers Scene Viewer / Quick Look, since
-        webxr was removed from ar-modes) — this is a separate, from-scratch
-        AR session with real reticle + tap placement. Shown whenever the
-        browser supports WebXR's immersive-ar + hit-test, regardless of
-        whether Scene Viewer/Quick Look is also available, since this gives
-        a meaningfully different (and arguably better) placement UX.
+        PRIMARY AR ENTRY POINT — priority order:
+          1) Our own WebXR tap-to-place flow (WebXRPlacementViewer), shown
+             whenever the browser supports WebXR immersive-ar + hit-test.
+             This is a from-scratch AR session with real reticle + tap
+             placement — no Scene Viewer / Quick Look / Google or Apple AR
+             involved.
+          2) If WebXR isn't supported, we fall back to model-viewer's native
+             AR button (slotted below), which auto-routes per platform via
+             ar-modes="scene-viewer quick-look":
+               - iOS  -> Quick Look (via ios-src / quick-look-browsers)
+               - Android (no WebXR hit-test) -> Scene Viewer
+        Only one of the two buttons is ever visible/clickable at a time,
+        controlled by webXrSupported.
       */}
       {!arActive && !modelLoading && webXrSupported && (
         <button
           onClick={() => setWebXrActive(true)}
           style={{
             position: "absolute",
-            bottom: arSupported ? "23%" : "10%",
+            bottom: "10%",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 10,
-            background: "transparent",
-            color: T.accent,
-            border: `1px solid ${T.border}`,
+            background: T.primary,
+            color: "#fff",
+            border: "none",
             borderRadius: 12,
-            padding: "0.6rem 1.6rem",
-            fontSize: "0.9rem",
-            fontWeight: 600,
+            padding: "0.85rem 2.4rem",
+            fontSize: "1rem",
+            fontWeight: 700,
             cursor: "pointer",
+            boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
             display: "flex",
             alignItems: "center",
             gap: "0.5rem",
           }}
         >
-          Tap to place (AR)
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+          View in AR
         </button>
       )}
 
@@ -466,9 +481,11 @@ export function SceneViewer() {
             display: "flex",
             alignItems: "center",
             gap: "0.5rem",
-            opacity: modelLoading ? 0 : 1,
+            // Fallback button: only shown once we know WebXR (our own flow)
+            // is unavailable — WebXR always takes priority when supported.
+            opacity: modelLoading || webXrSupported ? 0 : 1,
             transition: "opacity 0.2s ease",
-            pointerEvents: modelLoading ? "none" : "auto",
+            pointerEvents: modelLoading || webXrSupported ? "none" : "auto",
           }}
           title={arSupported ? "View in AR" : "AR isn't supported on this device or browser"}
         >
