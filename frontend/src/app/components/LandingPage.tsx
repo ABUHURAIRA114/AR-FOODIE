@@ -424,7 +424,7 @@ function Hero() {
           <img
             src={manAtTable}
             alt="Customer at a table about to scan an AR menu"
-            style={{ position: "relative", zIndex: 1, width: "95%", height: "105%", objectFit: "contain", display: "block", pointerEvents: "none",
+            style={{ position: "relative", zIndex: 1, width: "100%", height: "105%", objectFit: "contain", display: "block", pointerEvents: "none",
               border: `3px solid ${T.accent}`, borderRadius: 10, background: "transparent",
             transition: "border-color 0.2s, background 0.2s, transform 0.2s"
              }}
@@ -463,7 +463,7 @@ function Hero() {
 
           {/* MENUS hotspot — hollow bg3-outlined box, QR image, tap badge */}
           <Link to="/ar-viewer" aria-label="View the menu" style={{
-            position: "absolute", top: "61%", left: "71%", zIndex: 4,
+            position: "absolute", top: "61%", left: "72%", zIndex: 4,
             width: "19%", aspectRatio: "1 / 1", transform: "translate(-50%,-50%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: `3px solid ${T.bg3}`, borderRadius: 10, background: "transparent",
