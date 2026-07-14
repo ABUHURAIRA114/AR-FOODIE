@@ -4,18 +4,13 @@ from .models import Restaurant, Category, Dish
 
 
 def menu(request, slug):
-    """
-    Returns full menu data for a restaurant by slug.
-    React fetches this to render the menu.
-    URL: /menu-api/{slug}/
-    """
     restaurant = get_object_or_404(Restaurant, slug=slug, is_active=True)
     categories = Category.objects.filter(restaurant=restaurant, is_active=True)
 
     data = {
         "restaurant": {
-            "name":          restaurant.name,
-            "logo":          request.build_absolute_uri(restaurant.logo.url),
+            "name":          restaurant.business_name,
+            "logo":          request.build_absolute_uri(restaurant.logo.url) if restaurant.logo else None,
             "primary_color": restaurant.primary_color,
             "header_bg":     restaurant.header_bg,
             "description":   restaurant.description,
@@ -28,7 +23,7 @@ def menu(request, slug):
         data["categories"].append({
             "id":    cat.id,
             "name":  cat.name,
-            "image": request.build_absolute_uri(cat.image.url),
+            "image": request.build_absolute_uri(cat.image.url) if cat.image else None,
             "dishes": [
                 {
                     "id":            d.id,
@@ -36,7 +31,7 @@ def menu(request, slug):
                     "description":   d.description,
                     "price":         d.price,
                     "startingPrice": d.starting_price,
-                    "image":         request.build_absolute_uri(d.image.url),
+                    "image":         request.build_absolute_uri(d.image.url) if d.image else None,
                     "arModelUrl":    request.build_absolute_uri(d.glb_file.url) if d.glb_file else None,
                     "usdzUrl":       request.build_absolute_uri(d.usdz_file.url) if d.usdz_file else None,
                     "categoryId":    cat.id,

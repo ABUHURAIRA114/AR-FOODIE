@@ -8,6 +8,8 @@ import cashAsset from "../../assets/Cash.webp";
 import qrAsset from "../../assets/QR.webp";
 import { T } from "./tokens.mts";
 
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"></link>
+
 
 // ── Tiny helpers ───────────────────────────────────────────────────
 function AccentText({ children }: { children: React.ReactNode }) {
@@ -124,38 +126,40 @@ function DinenicsBrandLogo() {
         textDecoration: "none",
         display: "inline-flex",
         alignItems: "center",
+        gap: "0.6rem",
         transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)"
       }}
       onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"}
       onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
     >
-      {/* Premium Stand-out Square Badge Container */}
       <div style={{
         background: T.bg3,
-        padding: "0rem 0rem",
         borderRadius: 14,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 184, 0, 0.15)",
         border: "1px solid rgba(255, 255, 255, 0.03)",
-        /* Ensure the container doesn't grow */
         width: "45px",
         height: "45px",
-        overflow: "hidden"
+        overflow: "hidden",
+        flexShrink: 0,
       }}>
         <img
           src={logo}
           alt="Dinenics Logo"
-          style={{
-            /* Make the image larger than the container */
-            width: "200px",
-            height: "200px",
-            objectFit: "contain",
-            display: "block"
-          }}
+          style={{ width: "200px", height: "200px", objectFit: "contain", display: "block" }}
         />
       </div>
+      <span style={{
+        fontFamily: "'Pacifico', cursive",
+        fontSize: "1.4rem",
+        color: "#f5b800",
+        letterSpacing: "0.01em",
+        lineHeight: 1,
+      }}>
+        Dinenics
+      </span>
     </Link>
   );
 }
@@ -191,7 +195,6 @@ function Nav() {
       .catch(() => setIsUser(false));
   }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     if (!dropdownOpen) return;
     const handler = (e: MouseEvent) => {
@@ -214,39 +217,101 @@ function Nav() {
     <nav style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: isNarrow ? "1rem 1.25rem" : ".6rem 2.5rem",
-      background: T.bg3,
-      backdropFilter: "blur(14px)",
-      borderBottom: `1px solid ${T.border}`,
+      padding: isNarrow ? "0.6rem 1rem" : "0.6rem 1.5rem",
+      background: "rgba(5, 14, 17, 0.6)",
+      backdropFilter: "blur(20px)",
+      borderBottom: "1px solid rgba(245,184,0,0.12)",
     }}>
-      {/* ── BRAND ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-        <DinenicsBrandLogo />
-        <span style={{ fontSize: "1.15rem", fontWeight: 800, color: T.text, letterSpacing: "-0.02em" }}>
-          Dinenics
-        </span>
-      </div>
 
+      {/* ── BRAND ── */}
+      <DinenicsBrandLogo />
+
+      {/* ── CENTER PILL (wide only) ── */}
+      {!isNarrow && (
+        <div style={{
+          position: "absolute", left: "50%", transform: "translateX(-50%)",
+          display: "flex", alignItems: "center", gap: "0.15rem",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(245,184,0,0.15)",
+          borderRadius: 10,
+          padding: "0.3rem 0.4rem",
+        }}>
+          {navLinks.map(([href, label]) => (
+            <a key={href} href={href}
+              style={{
+                color: "rgba(232,221,208,0.6)", textDecoration: "none",
+                fontSize: "0.82rem", fontWeight: 600, padding: "0.4rem 1rem",
+                borderRadius: 8, transition: "background 0.2s, color 0.2s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.1)"; e.currentTarget.style.color = "#f5b800"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.6)"; }}>
+              {label}
+            </a>
+          ))}
+          <a href="#pricing"
+            style={{
+              color: "rgba(232,221,208,0.6)", textDecoration: "none",
+              fontSize: "0.82rem", fontWeight: 600, padding: "0.4rem 1rem",
+              borderRadius: 8, transition: "background 0.2s, color 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.1)"; e.currentTarget.style.color = "#f5b800"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.6)"; }}>
+            Pricing
+          </a>
+          <a href="#video"
+            style={{
+              color: "rgba(232,221,208,0.6)", textDecoration: "none",
+              fontSize: "0.82rem", fontWeight: 600, padding: "0.4rem 1rem",
+              borderRadius: 8, transition: "background 0.2s, color 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.1)"; e.currentTarget.style.color = "#f5b800"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.6)"; }}>
+            Demo
+          </a>
+        </div>
+      )}
+
+      {/* ── RIGHT SIDE ── */}
       {isNarrow ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "1.1rem" }}>
-          {/* Login / Models link — always visible in ribbon */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+
           {isUser ? (
-            <NavTextLink to="/models">Models</NavTextLink>
+            <Link to="/models" style={{
+              fontSize: "0.8rem", fontWeight: 700, color: "#f5b800",
+              textDecoration: "none", padding: "0.4rem 0.9rem",
+              border: "1px solid rgba(245,184,0,0.35)", borderRadius: 8,
+              transition: "background 0.2s",
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(245,184,0,0.1)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              Models
+            </Link>
           ) : (
-            <NavTextLink to="/user-login">Log In</NavTextLink>
+            <Link to="/user-login" style={{
+              fontSize: "0.8rem", fontWeight: 700, color: "#f5b800",
+              textDecoration: "none", padding: "0.4rem 0.9rem",
+              border: "1px solid rgba(245,184,0,0.35)", borderRadius: 8,
+              transition: "background 0.2s",
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(245,184,0,0.1)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              Log In
+            </Link>
           )}
 
-          {/* Three-dots dropdown for the rest */}
           <div ref={dropdownRef} style={{ position: "relative" }}>
             <button
               aria-label="More options"
               onClick={() => setDropdownOpen(v => !v)}
               style={{
-                background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8,
-                width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: T.text, padding: 0,
+                background: dropdownOpen ? "rgba(245,184,0,0.1)" : "transparent",
+                border: "1px solid rgba(245,184,0,0.2)",
+                borderRadius: 8, width: 36, height: 36,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "#f5b800", padding: 0,
+                transition: "background 0.2s",
               }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="5" r="1.8" fill="currentColor" />
                 <circle cx="12" cy="12" r="1.8" fill="currentColor" />
                 <circle cx="12" cy="19" r="1.8" fill="currentColor" />
@@ -255,96 +320,121 @@ function Nav() {
 
             {dropdownOpen && (
               <div style={{
-                position: "absolute", top: "calc(100% + 8px)", right: 0,
-                background: T.bg3, border: `1px solid ${T.border}`, borderRadius: 12,
-                padding: "0.5rem", minWidth: 180,
-                boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
+                position: "absolute", top: "calc(100% + 10px)", right: 0,
+                background: "rgba(8,20,25,0.97)",
+                border: "1px solid rgba(245,184,0,0.18)",
+                borderRadius: 10, padding: "0.5rem", minWidth: 190,
+                boxShadow: "0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,184,0,0.05)",
                 zIndex: 200,
               }}>
+                <p style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(245,184,0,0.45)", padding: "0.3rem 0.85rem 0.5rem" }}>Navigate</p>
+
                 {navLinks.map(([href, label]) => (
-                  <a key={href} href={href}
-                    onClick={() => setDropdownOpen(false)}
-                    style={{
-                      display: "block", color: T.muted, textDecoration: "none",
-                      fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                      transition: "background 0.15s, color 0.15s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
+                  <a key={href} href={href} onClick={() => setDropdownOpen(false)}
+                    style={{ display: "flex", alignItems: "center", gap: "0.6rem", color: "rgba(232,221,208,0.7)", textDecoration: "none", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s, color 0.15s" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
                     {label}
                   </a>
                 ))}
+                <a href="#pricing" onClick={() => setDropdownOpen(false)}
+                  style={{ display: "flex", alignItems: "center", gap: "0.6rem", color: "rgba(232,221,208,0.7)", textDecoration: "none", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s, color 0.15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
+                  Pricing
+                </a>
+                <a href="#video" onClick={() => setDropdownOpen(false)}
+                  style={{ display: "flex", alignItems: "center", gap: "0.6rem", color: "rgba(232,221,208,0.7)", textDecoration: "none", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s, color 0.15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
+                  Demo
+                </a>
 
-                <div style={{ borderTop: `1px solid ${T.border}`, margin: "0.4rem 0" }} />
+                <div style={{ borderTop: "1px solid rgba(245,184,0,0.1)", margin: "0.4rem 0" }} />
+                <p style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(245,184,0,0.45)", padding: "0.3rem 0.85rem 0.5rem" }}>Account</p>
 
                 {isUser ? (
                   <>
-                    <Link to="/models"
-                      onClick={() => setDropdownOpen(false)}
-                      style={{
-                        display: "block", color: T.muted, textDecoration: "none",
-                        fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                        transition: "background 0.15s, color 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
-                      Models
+                    <Link to="/models" onClick={() => setDropdownOpen(false)}
+                      style={{ display: "block", color: "rgba(232,221,208,0.7)", textDecoration: "none", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s, color 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
+                      My Models
                     </Link>
                     <button onClick={handleLogout}
-                      style={{
-                        display: "block", width: "100%", textAlign: "left",
-                        background: "transparent", border: "none", cursor: "pointer",
-                        color: T.muted, fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                        transition: "background 0.15s, color 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
+                      style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", cursor: "pointer", color: "#f87171", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.08)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       Log Out
                     </button>
                   </>
                 ) : (
-                  <Link to="/user-register"
-                    onClick={() => setDropdownOpen(false)}
-                    style={{
-                      display: "block", color: T.muted, textDecoration: "none",
-                      fontSize: "0.9rem", padding: "0.65rem 0.85rem", borderRadius: 8,
-                      transition: "background 0.15s, color 0.15s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = T.text; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.muted; }}>
-                    Register
-                  </Link>
+                  <>
+                    <Link to="/user-login" onClick={() => setDropdownOpen(false)}
+                      style={{ display: "block", color: "rgba(232,221,208,0.7)", textDecoration: "none", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s, color 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
+                      Log In
+                    </Link>
+                    <Link to="/user-register" onClick={() => setDropdownOpen(false)}
+                      style={{ display: "block", color: "rgba(232,221,208,0.7)", textDecoration: "none", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s, color 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
+                      Register
+                    </Link>
+                  </>
                 )}
               </div>
             )}
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
-          {navLinks.map(([href, label]) => (
-            <a key={href} href={href} style={{ color: T.muted, textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = T.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-              {label}
-            </a>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {isUser ? (
-            <NavTextLink to="/models">Models</NavTextLink>
+            <>
+              <Link to="/models" style={{
+                fontSize: "0.84rem", fontWeight: 600, color: "rgba(232,221,208,0.65)",
+                textDecoration: "none", padding: "0.45rem 1rem", borderRadius: 8,
+                transition: "color 0.2s, background 0.2s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#f5b800"; e.currentTarget.style.background = "rgba(245,184,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "rgba(232,221,208,0.65)"; e.currentTarget.style.background = "transparent"; }}>
+                Models
+              </Link>
+              <button onClick={handleLogout} style={{
+                background: "transparent", border: "1px solid rgba(248,113,113,0.3)",
+                borderRadius: 8, cursor: "pointer", color: "#f87171",
+                fontSize: "0.84rem", fontWeight: 600, padding: "0.45rem 1rem",
+                transition: "background 0.2s",
+              }}
+                onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.08)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                Log Out
+              </button>
+            </>
           ) : (
-            <NavTextLink to="/user-register">Register</NavTextLink>
-          )}
-          {isUser ? (
-            <button onClick={handleLogout} style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              color: T.muted, fontSize: "0.88rem", fontWeight: 600, padding: 0,
-              transition: "color 0.2s",
-            }}
-              onMouseEnter={e => (e.currentTarget.style.color = T.accent)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-              Log Out
-            </button>
-          ) : (
-            <NavTextLink to="/user-login">Log In</NavTextLink>
+            <>
+              <Link to="/user-login" style={{
+                fontSize: "0.84rem", fontWeight: 600, color: "rgba(232,221,208,0.65)",
+                textDecoration: "none", padding: "0.45rem 1rem", borderRadius: 8,
+                transition: "color 0.2s, background 0.2s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#f5b800"; e.currentTarget.style.background = "rgba(245,184,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "rgba(232,221,208,0.65)"; e.currentTarget.style.background = "transparent"; }}>
+                Log In
+              </Link>
+              <Link to="/user-register" style={{
+                fontSize: "0.84rem", fontWeight: 700, color: "#0d1a1f",
+                textDecoration: "none", padding: "0.45rem 1.1rem", borderRadius: 8,
+                background: "#f5b800",
+                transition: "opacity 0.2s, transform 0.2s",
+                boxShadow: "0 0 20px rgba(245,184,0,0.3)",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = "0.9"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.transform = ""; }}>
+                Register
+              </Link>
+            </>
           )}
         </div>
       )}
@@ -401,22 +491,17 @@ function Hero() {
 
           {/* Big DINENICS + AR MENU wordmark sitting behind the scene */}
           <div style={{
-            position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)",
+            position: "absolute", top: "35%", left: "50%", transform: "translate(-50%,-50%)",
             zIndex: 0, userSelect: "none", pointerEvents: "none",
             display: "flex", flexDirection: "column", alignItems: "center",
             
           }}>
             <span style={{
-              fontSize: "clamp(3rem, 9.5vw, 6.5rem)", fontWeight: 900, letterSpacing: "0.04em",
+              fontSize: "clamp(3rem, 9.5vw, 6.5rem)", fontWeight: 900,
+              fontFamily: "'Pacifico', cursive",
               color: T.accentL, whiteSpace: "nowrap", lineHeight: 1,
             }}>
               DINENICS
-            </span>
-            <span style={{
-              fontSize: "clamp(1.1rem, 3vw, 2rem)", fontWeight: 800, letterSpacing: "0.3em",
-              color: "rgba(245,184,0,0.18)", whiteSpace: "nowrap", marginTop: "0.6rem",
-            }}>
-              AR MENU
             </span>
           </div>
 
@@ -424,10 +509,10 @@ function Hero() {
           <img
             src={manAtTable}
             alt="Customer at a table about to scan an AR menu"
-            style={{ position: "relative", zIndex: 1, width: "100%", height: "105%", objectFit: "contain", display: "block", pointerEvents: "none",
+            style={{ position: "relative", zIndex: 1, width: "100%", height: "97%", objectFit: "contain", display: "block", pointerEvents: "none",
               border: `3px solid ${T.accent}`, borderRadius: 10, background: "transparent",
             transition: "border-color 0.2s, background 0.2s, transform 0.2s"
-             }}
+          }}
             
           />
           {/* PRICING hotspot — hollow bg3-outlined box, cash image, tap badge */}
