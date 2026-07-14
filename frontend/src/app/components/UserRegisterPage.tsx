@@ -12,16 +12,49 @@ export function UserRegisterPage() {
     const [city, setCity]               = useState("");
     const [agreed, setAgreed]           = useState(false);
     const [error, setError]             = useState<string | null>(null);
+    const [loading, setLoading]         = useState(false);
     const navigate = useNavigate();
+
+    const validate = (): string | null => {
+        if (!username.trim() || !password || !businessName.trim() || !phone.trim()) {
+            return "All fields are required.";
+        }
+        if (!/^(03\d{9}|\+923\d{9})$/.test(phone.trim())) {
+            return "Enter a valid Pakistani phone number e.g. 03001234567";
+        }
+        if (password.length < 8) {
+            return "Password must be at least 8 characters.";
+        }
+        if (!/[A-Za-z]/.test(password)) {
+            return "Password must include at least one letter.";
+        }
+        if (!/\d/.test(password)) {
+            return "Password must include at least one number.";
+        }
+        if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+            return 'Password must include at least one special character e.g @,#,$.';
+        }
+        return null;
+    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        console.log("form submitted", { username, businessName, phone });
+        setError(null);
+
+        const validationError = validate();
+        if (validationError) {
+            setError(validationError);
+            return;
+        }
+
+        setLoading(true);
         try {
             await registerRequest(username, password, businessName, ownerName, phone, city);
             navigate("/");
         } catch (err: any) {
-            setError(err.message);
+            setError(err.message || "Something went wrong. Please try again.");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -108,19 +141,19 @@ export function UserRegisterPage() {
 
                 <button
                     type="submit"
-                    disabled={!agreed}
+                    disabled={!agreed || loading}
                     style={{
                         background: agreed ? T.primary : "rgba(166,81,17,0.3)",
                         color: "#fff",
                         border: "none",
                         borderRadius: 8,
                         padding: "0.7rem",
-                        cursor: agreed ? "pointer" : "not-allowed",
+                        cursor: agreed && !loading ? "pointer" : "not-allowed",
                         fontWeight: 700,
                         transition: "background 0.2s",
                     }}
                 >
-                    Register
+                    {loading ? "Registering..." : "Register"}
                 </button>
             </form>
         </div>
