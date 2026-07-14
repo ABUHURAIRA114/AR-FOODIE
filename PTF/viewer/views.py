@@ -199,7 +199,6 @@ def user_me_view(request):
     if request.user.is_authenticated:
         return JsonResponse({'is_user': True, 'username': request.user.username})
     return JsonResponse({'is_user': False})
-
 @csrf_exempt
 @require_POST
 def user_register_view(request):
@@ -212,29 +211,11 @@ def user_register_view(request):
     phone         = data.get('phone')
     city          = data.get('city')
 
-    if not all([username, password, business_name, phone]):
-        return JsonResponse({'error': 'All fields are required.'}, status=400)
-
     if User.objects.filter(username=username).exists():
         return JsonResponse({'error': 'Username already exists.'}, status=400)
-    
-    # Phone validation — must be unique
+
     if Restaurant.objects.filter(phone=phone).exists():
         return JsonResponse({'error': 'An account with this phone number already exists.'}, status=400)
-
-    # Phone format — Pakistani numbers
-    if not re.match(r'^(03\d{9}|\+923\d{9})$', phone):
-        return JsonResponse({'error': 'Enter a valid Pakistani phone number e.g. 03001234567'}, status=400)
-
-    # Password strength
-    if len(password) < 8:
-        return JsonResponse({'error': 'Password must be at least 8 characters.'}, status=400)
-    if not re.search(r'[A-Za-z]', password):
-        return JsonResponse({'error': 'Password must include at least one letter.'}, status=400)
-    if not re.search(r'\d', password):
-        return JsonResponse({'error': 'Password must include at least one number.'}, status=400)
-    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-        return JsonResponse({'error': 'Password must include at least one special character e.g @,#,$.'}, status=400)
 
     user = User.objects.create_user(username=username, password=password)
 
@@ -248,8 +229,6 @@ def user_register_view(request):
 
     login(request, user)
     return JsonResponse({'success': True, 'username': user.username})
-
-
 @csrf_exempt
 def submit_feedback(request):
     if request.method == "POST":

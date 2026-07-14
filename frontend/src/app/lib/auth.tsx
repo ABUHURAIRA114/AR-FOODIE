@@ -34,7 +34,13 @@ export async function registerRequest(
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
-    body: JSON.stringify({ username, password, businessName, ownerName, phone, city }),
+    body: JSON.stringify({ 
+      username, 
+      password,
+      business_name: businessName,
+      owner_name: ownerName,
+      phone,
+      city }),
   });
 
   const data = await readJsonResponse(res);
