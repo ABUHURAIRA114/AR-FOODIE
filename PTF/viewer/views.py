@@ -200,7 +200,7 @@ def user_me_view(request):
         return JsonResponse({'is_user': True, 'username': request.user.username})
     return JsonResponse({'is_user': False})
 
-
+@csrf_exempt
 @require_POST
 def user_register_view(request):
     data = json.loads(request.body)

@@ -16,7 +16,13 @@ export function UserRegisterPage() {
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-       c
+        console.log("form submitted", { username, businessName, phone });
+        try {
+            await registerRequest(username, password, businessName, ownerName, phone, city);
+            navigate("/");
+        } catch (err: any) {
+            setError(err.message);
+        }
     };
 
     const inputStyle = {
