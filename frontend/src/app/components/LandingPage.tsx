@@ -140,8 +140,8 @@ function DinenicsBrandLogo() {
         justifyContent: "center",
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 184, 0, 0.15)",
         border: "1px solid rgba(255, 255, 255, 0.03)",
-        width: "45px",
-        height: "45px",
+        width: "55px",
+        height: "55px",
         overflow: "hidden",
         flexShrink: 0,
       }}>
@@ -153,7 +153,7 @@ function DinenicsBrandLogo() {
       </div>
       <span style={{
         fontFamily: "'Pacifico', cursive",
-        fontSize: "1.4rem",
+        fontSize: "1.6rem",
         color: "#f5b800",
         letterSpacing: "0.01em",
         lineHeight: 1,
