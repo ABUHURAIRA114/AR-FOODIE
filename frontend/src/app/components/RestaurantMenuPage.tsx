@@ -30,7 +30,7 @@ export default function RestaurantMenuPage() {
 
   useEffect(() => {
     if (!slug) return;
-    fetch(`/menu-api/${slug}/`)
+    fetch(`${import.meta.env.VITE_API_URL}/menu-api/${slug}/`)
       .then(r => {
         if (!r.ok) throw new Error("Restaurant not found");
         return r.json();
