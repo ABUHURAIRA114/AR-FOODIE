@@ -791,7 +791,7 @@ const plans = [
       "QR Codes + Model Viewer for Web Embedding",
       "Pre-Formatted Instagram Bio Link",
     ],
-    cta: "Order Now",
+    cta: "Contact Us",
     whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Lite Menu Plan* (Rs 14,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
     popular: false,
   },
