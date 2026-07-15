@@ -805,6 +805,7 @@ const plans = [
       "Everything in Lite, plus:",
       "2 Free Dish Refreshes every month",
       "Priority WebAR Hosting (faster load on larger menus)",
+      "Fully Custom Digital Menu Design (branded landing page)",
       "Advanced Analytics Dashboard & Scan Heatmaps",
       "Monthly Performance Reports",
     ],
@@ -825,7 +826,6 @@ const plans = [
     features: [
       "Everything in Standard, plus:",
       "3 Free Dish Refreshes every month",
-      "Fully Custom Digital Menu Design (branded landing page)",
       "White-Label QR Code Branding",
       "Dedicated Account Manager",
     ],
@@ -858,7 +858,7 @@ function Pricing() {
         <FadeUp>
           <SectionLabel>Transparent Pricing</SectionLabel>
           <h2 style={{ fontSize: "clamp(1.8rem,4vw,2.8rem)", fontWeight: 800, letterSpacing: "-0.025em", color: T.text, marginBottom: "0.75rem" }}>Simple Pricing</h2>
-          <p style={{ color: T.muted, fontSize: "1.05rem", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>No hidden fees. No contracts. Get started today!</p>
+          <p style={{ color: T.muted, fontSize: "1.05rem", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>Get started today! For Custom Plans, Contact Us.</p>
           <GlowLine />
         </FadeUp>
 
@@ -1178,7 +1178,7 @@ function Footer() {
         </svg>
       ),
       label: "@dinenics",
-      href: "https://x.com/dinenics",
+      href: "https://www.linkedin.com/company/dinenics/ ",
     },
   ];
 
