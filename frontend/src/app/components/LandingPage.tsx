@@ -775,11 +775,10 @@ function ProblemSection() {
 const plans = [
   {
     name: "Lite Menu",
-    price: "Rs 14,950",
+    price: "Rs 4,950",
     per: "/ Month",
-    setupFee: "Rs 15,000 one-time setup",
-    dishLimit: "Up to 17 Active AR Food Models",
     features: [
+      "Up to 5 Active AR Food Models Live On Your Menu",
       "1 Free Dish Refresh every month",
       "Standard WebAR Hosting",
       "Custom QR Codes + Shareable Links for Instagram",
@@ -788,73 +787,48 @@ const plans = [
       "Total Monthly Scan Count Dashboard",
     ],
     comingSoonFeatures: [
-      "QR Codes + Model Viewer for Web Embedding",
+      "QR Codes + MOdel Viewer for Web Embedding",
       "Pre-Formatted Instagram Bio Link",
+      "Analytics Dashboard with Scan Heatmaps",
     ],
     cta: "Order Now",
-    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Lite Menu Plan* (Rs 14,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
+    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Lite Menu Plan* (Rs 4,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
     popular: false,
-  },
-  {
-    name: "Standard Menu",
-    price: "Rs 19,950",
-    per: "/ Month",
-    setupFee: "Rs 15,000 one-time setup",
-    dishLimit: "18 to 24 Active AR Food Models",
-    features: [
-      "Everything in Lite, plus:",
-      "2 Free Dish Refreshes every month",
-      "Priority WebAR Hosting (faster load on larger menus)",
-      "Advanced Analytics Dashboard & Scan Heatmaps",
-      "Monthly Performance Reports",
-    ],
-    comingSoonFeatures: [
-      "White-Label QR Code Branding",
-      "Ready-to-Use Menu Design Templates (via Canva)",
-    ],
-    cta: "Contact Us",
-    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Standard Menu Plan* (Rs 19,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
-    popular: true,
   },
   {
     name: "Pro Menu",
-    price: "Rs 24,950",
+    price: "Rs 8,950",
     per: "/ Month",
-    setupFee: "Rs 20,000 one-time setup",
-    dishLimit: "25 to 35+ Active AR Food Models",
     features: [
-      "Everything in Standard, plus:",
-      "3 Free Dish Refreshes every month",
-      "Fully Custom Digital Menu Design (branded landing page)",
-      "White-Label QR Code Branding",
-      "Dedicated Account Manager",
+      "Up to 12 Active AR Food Models Live On Your Menu",
+      "3 Free Dish Refresh every month",
+      "Priority 48-Hour Model Delivery",
+      "Zero-App Scan-to-View Technology",
+      "Custom QR Codes + Shareable Links for Instagram",
+      "Universal Device Support (Full Android & iOS Support)",
+      "Total Monthly Scan Count Dashboard",
+
     ],
     comingSoonFeatures: [
+      "QR Codes + Model Viewer for Web Embedding",
+      "Advanced Analytics & Scan Heatmaps",
+      "Dedicated Account Manager",
+      "White-Label QR Code Branding",
+      "Ready-to-Use Menu Design Templates (Via Canva)",
       "AR Social Media Video Clips",
+      "Monthly Performance Reports",
+
     ],
     cta: "Contact Us",
-    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Pro Menu Plan* (Rs 24,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
-    popular: false,
+    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Pro Menu Plan* (Rs 8,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
+    popular: true,
   },
 ];
 
 function Pricing() {
   return (
     <div id="pricing" style={{ background: T.bg, padding: "6rem 0" }}>
-      <style>{`
-        .dinenics-pricing-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 1.5rem;
-          margin-top: 3.5rem;
-        }
-        @media (max-width: 860px) {
-          .dinenics-pricing-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 2rem", textAlign: "center" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 2rem", textAlign: "center" }}>
         <FadeUp>
           <SectionLabel>Transparent Pricing</SectionLabel>
           <h2 style={{ fontSize: "clamp(1.8rem,4vw,2.8rem)", fontWeight: 800, letterSpacing: "-0.025em", color: T.text, marginBottom: "0.75rem" }}>Simple Pricing</h2>
@@ -862,7 +836,7 @@ function Pricing() {
           <GlowLine />
         </FadeUp>
 
-        <div className="dinenics-pricing-grid">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: "1.5rem", marginTop: "3.5rem" }}>
           {plans.map((p, i) => (
             <FadeUp key={p.name} delay={i * 0.15}>
               <PricingCard plan={p} />
@@ -889,8 +863,6 @@ function PricingCard({ plan }: { plan: typeof plans[0] }) {
         position: "relative",
         boxShadow: plan.popular ? `0 0 40px rgba(166,81,17,0.15)` : "none",
         transition: "transform 0.3s, box-shadow 0.3s",
-        display: "flex",
-        flexDirection: "column",
       }}
       onMouseEnter={e => {
         e.currentTarget.style.transform = "translateY(-6px)";
@@ -915,43 +887,43 @@ function PricingCard({ plan }: { plan: typeof plans[0] }) {
         </div>
       )}
 
+      {/* Plan name */}
       <p style={{ fontSize: "0.78rem", fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
         {plan.name}
       </p>
 
-      <p style={{ fontSize: "1.9rem", fontWeight: 900, letterSpacing: "-0.03em", color: T.text, marginBottom: "0.1rem" }}>
+      {/* Price */}
+      <p style={{ fontSize: "2rem", fontWeight: 900, letterSpacing: "-0.03em", color: T.text, marginBottom: "0.2rem" }}>
         {plan.price} <span style={{ fontSize: "0.88rem", fontWeight: 400, color: T.muted }}>{plan.per}</span>
       </p>
 
-      <p style={{ fontSize: "0.8rem", color: T.muted, marginBottom: "0.3rem" }}>{plan.setupFee}</p>
-      <p style={{ fontSize: "0.85rem", fontWeight: 700, color: T.accent, marginBottom: "0.4rem" }}>{plan.dishLimit}</p>
+      <div style={{ borderTop: `1px solid ${T.border}`, margin: "1.4rem 0" }} />
 
-      <div style={{ borderTop: `1px solid ${T.border}`, margin: "1.2rem 0" }} />
-
-      <ul style={{ listStyle: "none", marginBottom: "1.4rem", padding: 0, flexGrow: 1 }}>
+      {/* Live features */}
+      <ul style={{ listStyle: "none", marginBottom: "1.4rem", padding: 0 }}>
         {plan.features.map(f => (
-          <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.88rem", color: T.muted, padding: "0.3rem 0" }}>
+          <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.9rem", color: T.muted, padding: "0.3rem 0" }}>
             <span style={{ color: T.accent, fontWeight: 700, flexShrink: 0 }}>✓</span> {f}
           </li>
         ))}
       </ul>
 
-      {plan.comingSoonFeatures.length > 0 && (
-        <div style={{ borderTop: `1px dashed ${T.border}`, paddingTop: "1rem", marginBottom: "1.6rem" }}>
-          <p style={{ fontSize: "0.78rem", fontWeight: 800, color: T.accent, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.7rem" }}>
-            🚀 Coming Soon
-          </p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {plan.comingSoonFeatures.map(f => (
-              <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.88rem", color: T.muted, padding: "0.3rem 0", opacity: 0.65 }}>
-                <span style={{ color: T.accent, fontWeight: 700, flexShrink: 0, fontSize: "0.85rem" }}>⏳</span> {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Coming Soon section */}
+      <div style={{ borderTop: `1px dashed ${T.border}`, paddingTop: "1rem", marginBottom: "1.6rem" }}>
+        <p style={{ fontSize: "0.78rem", fontWeight: 800, color: T.accent, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.7rem" }}>
+          🚀 Coming Soon
+        </p>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {plan.comingSoonFeatures.map(f => (
+            <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.9rem", color: T.muted, padding: "0.3rem 0", opacity: 0.65 }}>
+              <span style={{ color: T.accent, fontWeight: 700, flexShrink: 0, fontSize: "0.85rem" }}>⏳</span> {f}
+            </li>
+          ))}
+        </ul>
+      </div>
 
-      <a    
+      {/* WhatsApp CTA */}
+      <a
         href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
