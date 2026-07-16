@@ -791,23 +791,41 @@ const plans = [
       "Pre-Formatted Instagram Bio Link",
       "Analytics Dashboard with Scan Heatmaps",
     ],
-    cta: "Order Now",
-    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Lite Menu Plan* (Rs 4,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
+    cta: "Contact Us",
+    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Lite Menu Plan* (Rs 14,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
     popular: false,
+  },
+  {
+    name: "Standard Menu",
+    price: "Rs 19,950",
+    per: "/ Month",
+    setupFee: "Rs 15,000 one-time setup",
+    dishLimit: "18 to 24 Active AR Food Models",
+    features: [
+      "Everything in Lite, plus:",
+      "2 Free Dish Refreshes every month",
+      "Priority WebAR Hosting (faster load on larger menus)",
+      "Fully Custom Digital Menu Design (branded landing page)",
+      "Advanced Analytics Dashboard & Scan Heatmaps",
+      "Monthly Performance Reports",
+    ],
+    comingSoonFeatures: [
+      "White-Label QR Code Branding",
+      "Ready-to-Use Menu Design Templates (via Canva)",
+    ],
+    cta: "Contact Us",
+    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Standard Menu Plan* (Rs 19,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
+    popular: true,
   },
   {
     name: "Pro Menu",
     price: "Rs 8,950",
     per: "/ Month",
     features: [
-      "Up to 12 Active AR Food Models Live On Your Menu",
-      "3 Free Dish Refresh every month",
-      "Priority 48-Hour Model Delivery",
-      "Zero-App Scan-to-View Technology",
-      "Custom QR Codes + Shareable Links for Instagram",
-      "Universal Device Support (Full Android & iOS Support)",
-      "Total Monthly Scan Count Dashboard",
-
+      "Everything in Standard, plus:",
+      "3 Free Dish Refreshes every month",
+      "White-Label QR Code Branding",
+      "Dedicated Account Manager",
     ],
     comingSoonFeatures: [
       "QR Codes + Model Viewer for Web Embedding",
@@ -832,7 +850,7 @@ function Pricing() {
         <FadeUp>
           <SectionLabel>Transparent Pricing</SectionLabel>
           <h2 style={{ fontSize: "clamp(1.8rem,4vw,2.8rem)", fontWeight: 800, letterSpacing: "-0.025em", color: T.text, marginBottom: "0.75rem" }}>Simple Pricing</h2>
-          <p style={{ color: T.muted, fontSize: "1.05rem", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>No hidden fees. No contracts. Get started today!</p>
+          <p style={{ color: T.muted, fontSize: "1.05rem", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>Get started today! For Custom Plans, Contact Us.</p>
           <GlowLine />
         </FadeUp>
 
@@ -1150,7 +1168,7 @@ function Footer() {
         </svg>
       ),
       label: "@dinenics",
-      href: "https://x.com/dinenics",
+      href: "https://www.linkedin.com/company/dinenics/ ",
     },
   ];
 

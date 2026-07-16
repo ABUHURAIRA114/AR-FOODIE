@@ -44,10 +44,10 @@ class Restaurant(models.Model):
 
     # Plan & status
     plan = models.CharField(max_length=20, choices=[
-        ("starter", "Starter"),
-        ("growth",  "Growth"),
-        ("premium", "Premium"),
-    ], default="starter")
+        ("Lite Menu", "Lite Menu"),
+        ("Standard Menu", "Standard Menu"),
+        ("Pro Menu", "Pro Menu"),
+    ], default="Standard Menu")
     is_verified     = models.BooleanField(default=False)
     is_active       = models.BooleanField(default=True)
     joined_at       = models.DateTimeField(auto_now_add=True)
