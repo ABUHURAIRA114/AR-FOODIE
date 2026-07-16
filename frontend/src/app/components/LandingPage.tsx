@@ -268,6 +268,18 @@ function Nav() {
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.6)"; }}>
             Demo
           </a>
+
+          <a href="/restaurants"
+            style={{
+              color: "rgba(232,221,208,0.6)", textDecoration: "none",
+              fontSize: "0.82rem", fontWeight: 600, padding: "0.4rem 1rem",
+              borderRadius: 8, transition: "background 0.2s, color 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.1)"; e.currentTarget.style.color = "#f5b800"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.6)"; }}>
+            Restaurants
+          </a>
+          
         </div>
       )}
 
@@ -348,6 +360,13 @@ function Nav() {
                   onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
                   Demo
+                </a>
+
+                <a href="/restaurants" onClick={() => setDropdownOpen(false)}
+                  style={{ display: "flex", alignItems: "center", gap: "0.6rem", color: "rgba(232,221,208,0.7)", textDecoration: "none", fontSize: "0.88rem", padding: "0.6rem 0.85rem", borderRadius: 8, transition: "background 0.15s, color 0.15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,184,0,0.08)"; e.currentTarget.style.color = "#f5b800"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(232,221,208,0.7)"; }}>
+                  Restaurants
                 </a>
 
                 <div style={{ borderTop: "1px solid rgba(245,184,0,0.1)", margin: "0.4rem 0" }} />
@@ -1236,6 +1255,14 @@ function Footer() {
                 onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
               >
                 View Demo
+              </Link>
+              <Link
+                to="/restaurants"
+                style={{ color: "#a0a0a0", textDecoration: "none", fontSize: "0.88rem", transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+                onMouseLeave={e => (e.currentTarget.style.color = "#a0a0a0")}
+              >
+                Restaurants
               </Link>
             </div>
           </div>
