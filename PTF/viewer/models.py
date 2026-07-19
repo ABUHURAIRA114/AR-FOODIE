@@ -42,6 +42,14 @@ class Scene(models.Model):
     # --- Files ---
     glb_file    = models.FileField(upload_to=scene_upload_path)
     usdz_file   = models.FileField(upload_to=scene_upload_path, blank=True, null=True)
+    mind_target = models.FileField(
+        upload_to=scene_upload_path, blank=True, null=True,
+        help_text=(
+            "Compiled MindAR .mind target file for the image-tracking AR "
+            "fallback, generated from a marker image via MindAR's compiler: "
+            "https://hiukim.github.io/mind-ar-js-doc/tools/compile"
+        ),
+    )
 
     # --- Lighting ---
     exposure = models.FloatField(
