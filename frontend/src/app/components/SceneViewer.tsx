@@ -395,16 +395,17 @@ export function SceneViewer() {
       )}
 
       {/*
-        IMAGE TRACKING fallback trigger — only shown once we know neither
-        WebXR (our own tap-to-place flow) nor model-viewer's Scene Viewer /
-        Quick Look AR is available on this device, and a compiled .mind
-        target exists for this scene.
+        IMAGE TRACKING trigger — always shown whenever a compiled .mind
+        target exists for this scene, as an alternative AR method alongside
+        WebXR / Scene Viewer / Quick Look (not just as a last-resort
+        fallback). Positioned above the primary AR button so the two never
+        overlap when both are available at once.
       */}
       {!arActive && !modelLoading && scene.mind_target_url && (
         <div
           style={{
             position: "absolute",
-            bottom: "10%",
+            bottom: "calc(10% + 72px)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 10,
