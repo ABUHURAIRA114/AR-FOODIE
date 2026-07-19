@@ -63,6 +63,14 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit }: Ima
         const { renderer: r, scene, camera } = mindarThree;
         renderer = r;
 
+        // Force an explicitly transparent clear color. MindARThree sets
+        // alpha:true on its internal renderer by default, but relying on
+        // that default silently is what caused the camera feed to render
+        // as solid black in testing — the canvas must clear to alpha 0 on
+        // every frame so the <video> element underneath shows through in
+        // every area the 3D scene doesn't cover.
+        renderer.setClearColor(0x000000, 0);
+
         const anchor = mindarThree.addAnchor(0);
 
         anchor.onTargetFound = () => !cancelled && setPhase("found");
@@ -95,7 +103,33 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit }: Ima
         if (cancelled) return;
         setPhase("scanning");
 
+        // MindARThree.start() reconfigures the renderer/canvas internally as
+        // part of getting the camera stream running, which was silently
+        // undoing the setClearColor call above — the canvas would end up
+        // fully opaque black by the time the first frame rendered, even
+        // though the <video> element underneath was playing fine. Re-assert
+        // it now, AND every single frame in the loop below, so there's no
+        // path left for it to drift back to opaque.
+        renderer.setClearColor(0x000000, 0);
+
+        // Some browsers (especially with restrictive autoplay policies)
+        // silently pause a <video> element even once its srcObject is a
+        // live camera stream — tracking still works because MindAR reads
+        // pixels straight from the stream, but the visible element stays on
+        // its first (black) frame forever. Force playback explicitly.
+        const videoEl = containerRef.current?.querySelector("video");
+        if (videoEl) {
+          videoEl.muted = true;
+          videoEl.setAttribute("playsinline", "true");
+          videoEl.setAttribute("muted", "true");
+          videoEl.play().catch(() => {
+            // Autoplay was blocked outright — nothing more we can do without
+            // a user gesture, but tracking itself is unaffected.
+          });
+        }
+
         renderer.setAnimationLoop(() => {
+          renderer!.setClearColor(0x000000, 0);
           renderer!.render(scene, camera);
         });
       } catch (err: any) {
@@ -129,7 +163,40 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit }: Ima
         overflow: "hidden",
       }}
     >
-      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      {/*
+        Forces correct layering for the <video> and <canvas> elements MindAR
+        injects into the container below. Without this, the camera feed can
+        render as solid black even though tracking works fine — the video
+        needs to sit behind a fully transparent canvas, sized to fill its
+        parent, regardless of any global stylesheet defaults for video/canvas
+        elements elsewhere in the app.
+      */}
+      <style>{`
+        .mindar-container { position: relative; width: 100%; height: 100%; }
+        .mindar-container video {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          z-index: 0 !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          display: block !important;
+        }
+        .mindar-container canvas {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          z-index: 1 !important;
+          background: transparent !important;
+        }
+      `}</style>
+
+      <div ref={containerRef} className="mindar-container" />
 
       {/* Name pill, consistent with the main viewer */}
       <div
