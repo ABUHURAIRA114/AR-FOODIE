@@ -39,6 +39,7 @@ def api_scene(request, pk):
         'parent':      scene.parent,
         'glb_url':     request.build_absolute_uri(scene.glb_file.url) if scene.glb_file else None,
         'usdz_url':    request.build_absolute_uri(scene.usdz_file.url) if scene.usdz_file else None,
+        'mind_target_url': request.build_absolute_uri(scene.mind_target.url) if scene.mind_target else None,
         **_scene_lighting_fields(scene),
     })
 
@@ -61,6 +62,7 @@ def api_dishes(request):
             'parent':      scene.parent,
             'glb_url':     request.build_absolute_uri(scene.glb_file.url) if scene.glb_file else None,
             'usdz_url':    request.build_absolute_uri(scene.usdz_file.url) if scene.usdz_file else None,
+            'mind_target_url': request.build_absolute_uri(scene.mind_target.url) if scene.mind_target else None,
             'ar_url':      f"/ar-view/{scene.id}/",
             **_scene_lighting_fields(scene),
         })

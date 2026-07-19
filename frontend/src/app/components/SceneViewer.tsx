@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { T } from "./tokens.mts";
-// Image tracking fallback is disabled for now — see ImageTrackingViewer.tsx.
-// Re-enable by uncommenting this import and the three blocks below marked
-// "IMAGE TRACKING (disabled)".
-// import { ImageTrackingViewer } from "./ImageTrackingViewer";
+import { ImageTrackingViewer } from "./ImageTrackingViewer";
 import { WebXRPlacementViewer } from "./WebXRPlacementViewer";
 
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
@@ -43,8 +40,8 @@ export function SceneViewer() {
   const [modelError, setModelError] = useState(false);
   const [modelProgress, setModelProgress] = useState(0);
 
-  // IMAGE TRACKING (disabled) — state for the fallback path.
-  // const [imageTrackingActive, setImageTrackingActive] = useState(false);
+  const [imageTrackingActive, setImageTrackingActive] = useState(false);
+  const [showArGuide, setShowArGuide] = useState(false);
 
   // Custom tap-to-place WebXR path, separate from model-viewer's AR entirely.
   // This is our top-priority AR entry point (see render below): when the
@@ -151,7 +148,8 @@ export function SceneViewer() {
     setModelLoading(true);
     setModelError(false);
     setModelProgress(0);
-    // setImageTrackingActive(false); // IMAGE TRACKING (disabled)
+    setImageTrackingActive(false);
+    setShowArGuide(false);
     setWebXrActive(false);
 
     fetch(`${API_URL}/api/scene/${id}/`, { credentials: "include" })
@@ -200,17 +198,16 @@ export function SceneViewer() {
     );
   }
 
-  // IMAGE TRACKING (disabled) — early return for the fallback viewer.
-  // if (imageTrackingActive && scene.mind_target_url) {
-  //   return (
-  //     <ImageTrackingViewer
-  //       glbUrl={scene.glb_url}
-  //       mindTargetUrl={scene.mind_target_url}
-  //       name={scene.name}
-  //       onExit={() => setImageTrackingActive(false)}
-  //     />
-  //   );
-  // }
+  if (imageTrackingActive && scene.mind_target_url) {
+    return (
+      <ImageTrackingViewer
+        glbUrl={scene.glb_url}
+        mindTargetUrl={scene.mind_target_url}
+        name={scene.name}
+        onExit={() => setImageTrackingActive(false)}
+      />
+    );
+  }
 
   if (webXrActive) {
     return (
@@ -219,6 +216,10 @@ export function SceneViewer() {
         name={scene.name}
         modelScale={scene.webxr_model_scale}
         onExit={() => setWebXrActive(false)}
+        onFallbackToSceneViewer={() => {
+          setWebXrActive(false);
+          setWebXrSupported(false); // forces the model-viewer AR button (Scene Viewer / Quick Look) to show
+        }}
       />
     );
   }
@@ -394,40 +395,128 @@ export function SceneViewer() {
       )}
 
       {/*
-        IMAGE TRACKING (disabled) — standalone fallback trigger.
-        Re-enable along with the import, state, and early return above.
+        IMAGE TRACKING fallback trigger — only shown once we know neither
+        WebXR (our own tap-to-place flow) nor model-viewer's Scene Viewer /
+        Quick Look AR is available on this device, and a compiled .mind
+        target exists for this scene.
       */}
-      {/* {!arActive && !modelLoading && !arSupported && !webXrSupported && scene.mind_target_url && (
-        <button
-          onClick={() => setImageTrackingActive(true)}
+      {!arActive && !modelLoading && !arSupported && !webXrSupported && scene.mind_target_url && (
+        <div
           style={{
             position: "absolute",
             bottom: "10%",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 10,
-            background: T.primary,
-            color: "#fff",
-            border: "none",
-            borderRadius: 12,
-            padding: "0.85rem 2.4rem",
-            fontSize: "1rem",
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
+            gap: "0.6rem",
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
-          Scan to view in AR
-        </button>
-      )} */}
+          <button
+            onClick={() => setImageTrackingActive(true)}
+            style={{
+              background: T.primary,
+              color: "#fff",
+              border: "none",
+              borderRadius: 12,
+              padding: "0.85rem 2.4rem",
+              fontSize: "1rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+            Scan to view in AR
+          </button>
+
+          <button
+            onClick={() => setShowArGuide(true)}
+            aria-label="How does this work?"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "rgba(13,26,31,0.85)",
+              border: `1px solid ${T.border}`,
+              color: T.accent,
+              fontWeight: 700,
+              fontSize: "1rem",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            ?
+          </button>
+        </div>
+      )}
+
+      {/* Guide modal explaining the image-tracking AR flow */}
+      {showArGuide && (
+        <div
+          onClick={() => setShowArGuide(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 20,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1.5rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: T.bg3,
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              padding: "1.5rem",
+              maxWidth: 340,
+            }}
+          >
+            <p style={{ fontWeight: 700, color: T.accent, marginBottom: "0.6rem" }}>
+              How image tracking AR works
+            </p>
+            {[
+              'Tap "Scan to view in AR"',
+              "Allow camera access when asked",
+              "Point your camera at the menu photo / table tent",
+              "Hold steady in good light until the dish appears on top",
+            ].map((step, i) => (
+              <div key={i} style={{ display: "flex", gap: "0.6rem", marginBottom: "0.5rem" }}>
+                <span style={{ color: T.accent, fontWeight: 700 }}>{i + 1}.</span>
+                <span style={{ color: T.muted, fontSize: "0.88rem" }}>{step}</span>
+              </div>
+            ))}
+            <button
+              onClick={() => setShowArGuide(false)}
+              style={{
+                marginTop: "0.8rem",
+                width: "100%",
+                background: T.primary,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "0.6rem",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
 
       {/* @ts-ignore - model-viewer is a web component */}

@@ -63,6 +63,8 @@ interface WebXRPlacementViewerProps {
   glbUrl: string;
   name: string;
   onExit?: () => void;
+  /** Called when the user wants to bail out of WebXR to model-viewer's Scene Viewer / Quick Look path instead. */
+  onFallbackToSceneViewer?: () => void;
   /** Uniform scale applied to the loaded model. Defaults to 1 (real-world scale). */
   modelScale?: number;
 }
@@ -82,6 +84,7 @@ export function WebXRPlacementViewer({
   glbUrl,
   name,
   onExit,
+  onFallbackToSceneViewer,
   modelScale = 1,
 }: WebXRPlacementViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -591,10 +594,29 @@ export function WebXRPlacementViewer({
 
       {phase === "unsupported" && (
         <div style={overlayStyle}>
-          <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
-            This browser doesn't support WebXR AR. Try Chrome on a recent
-            Android phone.
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+            <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+              This browser doesn't support WebXR AR. Try Chrome on a recent
+              Android phone.
+            </span>
+            {onFallbackToSceneViewer && (
+              <button
+                onClick={onFallbackToSceneViewer}
+                style={{
+                  background: T.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "0.6rem 1.4rem",
+                  fontWeight: 700,
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                }}
+              >
+                Try Scene Viewer instead
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -640,15 +662,55 @@ export function WebXRPlacementViewer({
 
       {phase === "denied" && (
         <div style={overlayStyle}>
-          <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
-            Camera access is needed for AR. Please allow camera permissions and try again.
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+            <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+              Camera access is needed for AR. Please allow camera permissions and try again.
+            </span>
+            {onFallbackToSceneViewer && (
+              <button
+                onClick={onFallbackToSceneViewer}
+                style={{
+                  background: T.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "0.6rem 1.4rem",
+                  fontWeight: 700,
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                }}
+              >
+                Try Scene Viewer instead
+              </button>
+            )}
+          </div>
         </div>
       )}
 
       {phase === "error" && (
         <div style={overlayStyle}>
-          <span style={{ color: "#f87171", fontSize: "0.9rem" }}>{errorMessage}</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+            <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+              {errorMessage}
+            </span>
+            {onFallbackToSceneViewer && (
+              <button
+                onClick={onFallbackToSceneViewer}
+                style={{
+                  background: T.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "0.6rem 1.4rem",
+                  fontWeight: 700,
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                }}
+              >
+                Try Scene Viewer instead
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
