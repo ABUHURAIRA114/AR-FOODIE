@@ -400,7 +400,7 @@ export function SceneViewer() {
         Quick Look AR is available on this device, and a compiled .mind
         target exists for this scene.
       */}
-      {!arActive && !modelLoading && !arSupported && !webXrSupported && scene.mind_target_url && (
+      {!arActive && !modelLoading && scene.mind_target_url && (
         <div
           style={{
             position: "absolute",
