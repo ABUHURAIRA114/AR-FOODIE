@@ -88,6 +88,23 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         const gltf = await loader.loadAsync(glbUrl);
         const model = gltf.scene;
 
+        // MindAR's anchor coordinate system has the tracked image lying flat
+        // in the local XY plane: X = right, Y = up **within the image**, and
+        // Z = perpendicular to the image, pointing toward the camera / away
+        // from the marker surface (confirmed by MindAR's own examples, which
+        // overlay a flat plane directly on anchor.group with zero rotation
+        // to represent the image itself).
+        //
+        // A glTF model's native up axis (Y) therefore lines up with the
+        // anchor's *in-plane* Y by default — not the axis actually
+        // perpendicular to the marker — which is exactly why the dish was
+        // rendering standing up on its side instead of resting flat on top
+        // of the marker. Rotating 90° about X swaps the model's up axis onto
+        // the anchor's Z axis, so it lies flat with its top facing the
+        // camera, the way a real dish would sit on a table the marker is
+        // printed on.
+        model.rotation.x = Math.PI / 2;
+
         // Normalise by the model's actual bounding box instead of a blind
         // fixed scale — a flat `0.3` looks wildly different (often far too
         // small) depending on the GLB's native units/export scale. Sizing
@@ -102,7 +119,7 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         const largestDimension = Math.max(size.x, size.y, size.z);
 
         if (largestDimension > 0 && isFinite(largestDimension)) {
-          const targetSize = 1; // relative to the marker image's tracking plane
+          const targetSize = 1; // model's largest dimension = the marker's own width
           const normalizingScale = targetSize / largestDimension;
           model.scale.setScalar(normalizingScale * modelScale);
         } else {
@@ -110,15 +127,16 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
           console.warn("[ImageTrackingViewer] Degenerate bounding box — using raw modelScale.");
         }
 
-        // Re-center so the model sits on top of the marker rather than
-        // floating off to one side, then rest its base on the tracking
-        // plane (y = 0) instead of being vertically centered through it.
+        // Re-center within the image plane (X/Y) so the model sits directly
+        // over the marker rather than floating off to one side, then rest
+        // its base on the tracking plane itself (z = 0) instead of floating
+        // through it or embedding into the marker.
         box.setFromObject(model);
         const center = new THREE.Vector3();
         box.getCenter(center);
         model.position.x -= center.x;
-        model.position.z -= center.z;
-        model.position.y -= box.min.y;
+        model.position.y -= center.y;
+        model.position.z -= box.min.z;
 
         anchor.group.add(model);
 
