@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { RestaurantLogo } from "./RestaurantLogo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -366,7 +367,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         {/* Desktop */}
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem 0 0", display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <div style={{ flexShrink: 0 }}>
-            <img src={logo} alt={restaurantName} height={44} style={{ objectFit: "contain", display: "block" }} />
+            <RestaurantLogo logo={logo} name={restaurantName} height={44} />
           </div>
 
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
@@ -406,7 +407,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
           </button>
 
           <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <img src={logo} alt={restaurantName} height={38} style={{ objectFit: "contain" }} />
+            <RestaurantLogo logo={logo} name={restaurantName} height={38} />
           </div>
 
           <button

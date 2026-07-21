@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import React from "react";
+import { RestaurantLogo } from "./RestaurantLogo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,23 +250,9 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
   );
 }
 
-// ─── Logo component — handles empty logo gracefully ───────────────────────────
-function RestaurantLogo({ logo, name, height }: { logo: string; name: string; height: number }) {
-  if (logo) {
-    return (
-      <img
-        src={logo} alt={name} height={height}
-        style={{ objectFit: "contain", display: "block" }}
-        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-      />
-    );
-  }
-  return (
-    <span style={{ fontWeight: 800, fontSize: "1.2rem", color: "#333", fontFamily: "'Poppins',sans-serif" }}>
-      {name}
-    </span>
-  );
-}
+// RestaurantLogo now lives in ./RestaurantLogo.tsx, shared with every other
+// menu template so logo fallback/error handling behaves identically
+// everywhere instead of diverging per-template.
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuTemplate({ config, categories, dishes }: MenuTemplateProps) {
