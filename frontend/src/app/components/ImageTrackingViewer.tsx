@@ -29,11 +29,17 @@ interface ImageTrackingViewerProps {
   /** Display name shown in the UI, e.g. the dish name. */
   name: string;
   onExit?: () => void;
+  /**
+   * Multiplier applied on top of automatic bounding-box normalisation
+   * (which sizes every model consistently regardless of how it was
+   * originally modeled/exported). 1 = default size, 2 = twice as large, etc.
+   */
+  modelScale?: number;
 }
 
 type TrackingPhase = "loading" | "ready" | "scanning" | "found" | "camera-denied" | "error";
 
-export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit }: ImageTrackingViewerProps) {
+export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, modelScale = 1 }: ImageTrackingViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
   const [phase, setPhase] = useState<TrackingPhase>("loading");
@@ -82,9 +88,38 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit }: Ima
         const gltf = await loader.loadAsync(glbUrl);
         const model = gltf.scene;
 
-        // Reasonable default framing; callers can adjust per-model if needed.
-        model.scale.set(0.3, 0.3, 0.3);
-        model.position.set(0, 0, 0);
+        // Normalise by the model's actual bounding box instead of a blind
+        // fixed scale — a flat `0.3` looks wildly different (often far too
+        // small) depending on the GLB's native units/export scale. Sizing
+        // relative to the target image's tracking plane (1 unit here = the
+        // width of the marker image) keeps every dish's model consistently
+        // sized on top of its marker, and modelScale lets it be tuned up or
+        // down per-scene from there.
+        model.updateWorldMatrix(true, true);
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const largestDimension = Math.max(size.x, size.y, size.z);
+
+        if (largestDimension > 0 && isFinite(largestDimension)) {
+          const targetSize = 1; // relative to the marker image's tracking plane
+          const normalizingScale = targetSize / largestDimension;
+          model.scale.setScalar(normalizingScale * modelScale);
+        } else {
+          model.scale.setScalar(modelScale);
+          console.warn("[ImageTrackingViewer] Degenerate bounding box — using raw modelScale.");
+        }
+
+        // Re-center so the model sits on top of the marker rather than
+        // floating off to one side, then rest its base on the tracking
+        // plane (y = 0) instead of being vertically centered through it.
+        box.setFromObject(model);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        model.position.x -= center.x;
+        model.position.z -= center.z;
+        model.position.y -= box.min.y;
+
         anchor.group.add(model);
 
         // Basic lighting — image-tracked AR has no real-world light estimation,
