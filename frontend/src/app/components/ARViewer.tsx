@@ -1,18 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { QRCodeSVG } from "qrcode.react";
-
-const T = {
-  bg: "#0d1a1f",
-  bg2: "#111f25",
-  bg3: "#16262d",
-  primary: "#A65111",
-  primaryL: "#C4621A",
-  accent: "#DDAA00",
-  text: "#e8ddd0",
-  muted: "#85AAAA",
-  border: "rgba(166,81,17,0.25)",
-} as const;
+import { T } from "./tokens.mts";
 
 // ── Responsive: portrait/narrow detection ─────────────────────────
 function useIsNarrow(breakpoint = 860) {
@@ -65,13 +54,13 @@ function QRCodeBlock({ url, label }: { url: string; label: string }) {
     </div>
   );
 }
-
+const API_URL = (import.meta as any).env.VITE_API_URL || "";
 const DEMO_MODEL = {
   name: "DEMO-Dinenics",
   description: "Sample AR model — scan the QR code to view it on your phone.",
-  glb_url: "/view/ce0a3ea1-bc49-41b7-b06f-d2922e42d53e/",
+  glb_url: `${API_URL}/media/scenes/general/DEMO-Dinenics.glb`,
   usdz_url: null as string | null,
-  ar_url: "/view/ce0a3ea1-bc49-41b7-b06f-d2922e42d53e/",
+  ar_url: `/ar-view/8522d019-69b3-42ae-b603-905c1f471d98/`,
 };
 
 // ── Info panel content (shared between sidebar layout and drawer) ──
@@ -126,8 +115,6 @@ function InfoPanelContent({ model, showQR, setShowQR }: { model: typeof DEMO_MOD
     </>
   );
 }
-
-// ── AR Viewer Page ────────────────────────────────────────────────
 export function ARViewer() {
   const [showQR, setShowQR] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -139,7 +126,7 @@ export function ARViewer() {
     <div style={{ background: T.bg, color: T.text, minHeight: "100vh", fontFamily: "'Segoe UI',system-ui,sans-serif", overflowX: "hidden" }}>
 
       {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isNarrow ? "1rem 1.25rem" : "1rem 2rem", borderBottom: `1px solid ${T.border}`, background: "rgba(13,26,31,0.85)", backdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 50 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isNarrow ? "1rem 1.25rem" : "1rem 2rem", borderBottom: `1px solid ${T.border}`, background: T.bg3, backdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 50 }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", color: T.muted, fontSize: "0.88rem" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
           {!isNarrow && "Back to Dinenics"}
@@ -147,16 +134,11 @@ export function ARViewer() {
         <span style={{ fontSize: isNarrow ? "1.05rem" : "1.2rem", fontWeight: 800, color: T.accent }}>
           Dinenics Viewer
         </span>
-
         {isNarrow ? (
           <button
             aria-label="Open menu"
             onClick={() => setDrawerOpen(true)}
-            style={{
-              background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8,
-              width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: T.text, padding: 0, flexShrink: 0,
-            }}>
+            style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, padding: 0, flexShrink: 0 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="5" r="1.8" fill="currentColor" />
               <circle cx="12" cy="12" r="1.8" fill="currentColor" />
@@ -174,7 +156,7 @@ export function ARViewer() {
 
         {/* 3D preview */}
         <div style={{ position: "relative", background: T.bg, height: isNarrow ? "60vh" : "auto", minHeight: isNarrow ? 380 : undefined }}>
-          <div style={{ position: "absolute", top: "1.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 10, background: "rgba(13,26,31,0.7)", border: `1px solid ${T.border}`, backdropFilter: "blur(10px)", borderRadius: 999, padding: "0.4rem 1rem", fontSize: "0.78rem", color: T.muted, whiteSpace: "nowrap" }}>
+          <div style={{ position: "absolute", top: "1.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 10, background: T.bg3, border: `1px solid ${T.border}`, backdropFilter: "blur(10px)", borderRadius: 999, padding: "0.4rem 1rem", fontSize: "0.78rem", color: T.muted, whiteSpace: "nowrap" }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", boxShadow: "0 0 8px #22c55e", marginRight: "0.5rem" }} />
             Drag to rotate · 3D Preview
           </div>
@@ -190,9 +172,17 @@ export function ARViewer() {
           />
 
           <div style={{ position: "absolute", bottom: "1.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 10, textAlign: "center", padding: "0 1rem" }}>
-            <p style={{ color: T.muted, fontSize: "0.78rem" }}>
-              {isNarrow ? "Tap the menu icon above to view the QR code" : "Scan QR code on the right to view this model in real AR on your phone"}
-            </p>
+            {isNarrow ? (
+              <button
+                onClick={() => window.open(`${window.location.origin}${DEMO_MODEL.ar_url}`, "_blank", "noopener,noreferrer")}
+                style={{ display: "inline-block", background: T.primary, color: "#fff", padding: "0.7rem 1.4rem", borderRadius: 10, fontWeight: 700, fontSize: "0.9rem", border: "none", cursor: "pointer", boxShadow: `0 4px 20px rgba(166,81,17,0.35)` }}>
+                Open AR view directly →
+              </button>
+            ) : (
+              <p style={{ color: T.muted, fontSize: "0.78rem" }}>
+                Scan QR code on the right to view this model in real AR on your phone
+              </p>
+            )}
           </div>
         </div>
 
@@ -209,23 +199,9 @@ export function ARViewer() {
         <>
           <div
             onClick={closeDrawer}
-            style={{
-              position: "fixed", inset: 0, zIndex: 199,
-              background: "rgba(0,0,0,0.5)",
-              opacity: drawerOpen ? 1 : 0,
-              pointerEvents: drawerOpen ? "auto" : "none",
-              transition: "opacity 0.3s ease",
-            }}
+            style={{ position: "fixed", inset: 0, zIndex: 199, background: "rgba(0,0,0,0.5)", opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? "auto" : "none", transition: "opacity 0.3s ease" }}
           />
-          <aside style={{
-            position: "fixed", top: 0, right: 0, height: "100vh", width: "min(86vw, 360px)",
-            background: T.bg2, borderLeft: `1px solid ${T.border}`, zIndex: 200,
-            transform: drawerOpen ? "translateX(0)" : "translateX(100%)",
-            transition: "transform 0.32s ease",
-            display: "flex", flexDirection: "column", gap: "1.5rem", padding: "1.25rem",
-            overflowY: "auto",
-            boxShadow: drawerOpen ? "-8px 0 30px rgba(0,0,0,0.35)" : "none",
-          }}>
+          <aside style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "min(86vw, 360px)", background: T.bg2, borderLeft: `1px solid ${T.border}`, zIndex: 200, transform: drawerOpen ? "translateX(0)" : "translateX(100%)", transition: "transform 0.32s ease", display: "flex", flexDirection: "column", gap: "1.5rem", padding: "1.25rem", overflowY: "auto", boxShadow: drawerOpen ? "-8px 0 30px rgba(0,0,0,0.35)" : "none" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: "1.2rem", fontWeight: 800, color: T.accent }}>Model Info</span>
               <button

@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin-login
+Disallow: /user-login
+Disallow: /user-register
+Disallow: /user-logout
+
+Sitemap: https://dinenics.com/sitemap.xml

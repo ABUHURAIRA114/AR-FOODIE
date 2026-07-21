@@ -1,15 +1,18 @@
+const API_URL = (import.meta as any).env.VITE_API_URL || "";
+
 export async function getCsrfToken(): Promise<string> {
-  const res = await fetch("/api/csrf/", { credentials: "include" });
+  const res = await fetch(`${API_URL}/api/csrf/`, { credentials: "include" });
   const data = await res.json();
   return data.csrfToken;
 }
+
 export async function checkAuth(): Promise<{ is_staff: boolean; is_user: boolean; username?: string }> {
-  const res = await fetch("/api/me/", { credentials: "include" });
+  const res = await fetch(`${API_URL}/api/me/`, { credentials: "include" });
   return res.json();
 }
 
 export async function checkUserAuth(): Promise<{ is_user: boolean; username?: string }> {
-  const res = await fetch("/api/user-me/", { credentials: "include" });
+  const res = await fetch(`${API_URL}/api/user-me/`, { credentials: "include" });
   return res.json();
 }
 
@@ -18,13 +21,26 @@ async function readJsonResponse(res: Response) {
   return text ? JSON.parse(text) : {};
 }
 
-export async function registerRequest(username: string, password: string) {
+export async function registerRequest(
+  username: string, 
+  password: string,
+  businessName: string,
+  ownerName: string,
+  phone: string,
+  city: string
+) {
   const csrfToken = await getCsrfToken();
-  const res = await fetch("/api/user-register/", {
+  const res = await fetch(`${API_URL}/api/user-register/`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ 
+      username, 
+      password,
+      business_name: businessName,
+      owner_name: ownerName,
+      phone,
+      city }),
   });
 
   const data = await readJsonResponse(res);
@@ -34,7 +50,7 @@ export async function registerRequest(username: string, password: string) {
 
 export async function loginRequest(username: string, password: string) {
   const csrfToken = await getCsrfToken();
-  const res = await fetch("/api/user-login/", {
+  const res = await fetch(`${API_URL}/api/user-login/`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
@@ -46,10 +62,9 @@ export async function loginRequest(username: string, password: string) {
   return data;
 }
 
-
 export async function logoutRequest() {
   const csrfToken = await getCsrfToken();
-  await fetch("/api/user-logout/", {
+  await fetch(`${API_URL}/api/user-logout/`, {
     method: "POST",
     credentials: "include",
     headers: { "X-CSRFToken": csrfToken },
