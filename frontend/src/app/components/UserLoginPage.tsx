@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { loginRequest } from "../lib/auth";
-
-const T = {
-  bg: "#0d1a1f",
-  bg3: "#16262d",
-  primary: "#A65111",
-  accent: "#DDAA00",
-  text: "#e8ddd0",
-  muted: "#85AAAA",
-  border: "rgba(166,81,17,0.25)",
-} as const;
+import { T } from "./tokens.mts";
 
 export function UserLoginPage() {
     const [username, setUsername] = useState("");
@@ -40,6 +31,13 @@ export function UserLoginPage() {
                 <button type="submit" style={{ background: T.primary, color: "#fff", border: "none", borderRadius: 8, padding: "0.7rem", cursor: "pointer", fontWeight: 700 }}>
                     Log In
                 </button>
+                <p style={{ textAlign: "center", fontSize: "0.85rem", color: T.muted, margin: 0 }}>
+                    Don't have an account?{" "}
+                    <button type="button" onClick={() => navigate("/user-register")}
+                        style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", fontSize: "0.85rem", padding: 0, fontWeight: 600 }}>
+                        Register
+                    </button>
+                </p>
             </form>
         </div>
     );

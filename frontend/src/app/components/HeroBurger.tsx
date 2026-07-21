@@ -1,5 +1,5 @@
-import React from "react";
-
+import { useEffect, useRef, useState } from "react";
+import burgerModel from "../../assets/burger.glb";
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -12,12 +12,26 @@ declare global {
         'rotation-per-second'?: string;
         'shadow-intensity'?: string;
         'environment-image'?: string;
+        'ios-src'?: string;
+        ar?: boolean;
+        'ar-modes'?: string;
       };
     }
   }
 }
 
 export function HeroBurger() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.1 }
+    );
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
   return (
     <div style={{
       position: "absolute",
@@ -29,7 +43,8 @@ export function HeroBurger() {
       zIndex: 1,
     }}>
       <model-viewer
-        src="/src/assets/burger.glb"
+        src={burgerModel}
+        loading="lazy"
         alt="Realistic burger"
         auto-rotate
         auto-rotate-delay="0"
