@@ -60,7 +60,7 @@ const DEMO_MODEL = {
   description: "Sample AR model — scan the QR code to view it on your phone.",
   glb_url: `${API_URL}/media/scenes/general/DEMO-Dinenics.glb`,
   usdz_url: null as string | null,
-  ar_url: `/ar-view/8522d019-69b3-42ae-b603-905c1f471d98/`,
+  ar_url: `/ar-view/17ae7cff-aa6e-4dd5-81f8-776e554f1bec/`,
 };
 
 // ── Info panel content (shared between sidebar layout and drawer) ──
