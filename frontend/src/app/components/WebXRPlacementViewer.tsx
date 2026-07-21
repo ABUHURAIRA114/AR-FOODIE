@@ -24,17 +24,23 @@ import { T } from "./tokens.mts";
  *      progress sooner, since planes often appear before a clean hit-test
  *      result does). Also run a hit test from the 'viewer' reference space
  *      and move a reticle to the first result's pose, rendered in the
- *      'local' reference space.
+ *      'local' reference space. Both the plane visualization and the
+ *      reticle stay visible even after the model is placed, so the user can
+ *      always see where a re-tap would move it to.
  *   3. On a WebXR 'select' event (the user's tap), place the model at the
  *      reticle's current pose and stop moving it — this is the explicit
  *      "tap to place" step model-viewer doesn't offer.
  *   4. After placement, the user can tap again to re-place, matching the
- *      common "tap elsewhere to move it" pattern. Plane visualization fades
- *      out once placed, to declutter the view.
+ *      common "tap elsewhere to move it" pattern.
  *   5. After placement, the user can also press-and-drag on the surface to
  *      slide the model around continuously, using a transient-input hit
  *      test tied to the active touch point (see onSelectStart/onSelectEnd
  *      and the drag block in the animation loop below).
+ *   6. Once placed, a two-finger pinch gesture scales the model up/down,
+ *      read directly from touch events on the dom-overlay element (see the
+ *      onOverlayTouch* handlers below). This only works while dom-overlay is
+ *      active, since that's what lets our own DOM element receive real
+ *      touch events during the immersive session.
  *
  * Note on speed: the actual scan/tracking speed is governed by ARCore's own
  * SLAM pipeline, which this component only reads from each frame — there's
@@ -79,6 +85,38 @@ type SessionPhase =
   | "active-searching" // GLB ready, scanning for surfaces
   | "active-placed"
   | "error";
+
+// Builds a single rounded-square outline path (used both for the reticle's
+// outer edge and, at a smaller size, its inner edge to form a "frame").
+function traceRoundedSquare(path: THREE.Path | THREE.Shape, half: number, cornerRadius: number) {
+  const h = half;
+  const r = Math.min(cornerRadius, half);
+  path.moveTo(-h + r, -h);
+  path.lineTo(h - r, -h);
+  path.absarc(h - r, -h + r, r, -Math.PI / 2, 0, false);
+  path.lineTo(h, h - r);
+  path.absarc(h - r, h - r, r, 0, Math.PI / 2, false);
+  path.lineTo(-h + r, h);
+  path.absarc(-h + r, h - r, r, Math.PI / 2, Math.PI, false);
+  path.lineTo(-h, -h + r);
+  path.absarc(-h + r, -h + r, r, Math.PI, Math.PI * 1.5, false);
+}
+
+// A flat "frame" (square annulus with rounded corners) geometry, replacing
+// the plain RingGeometry the reticle used to use. Built the same way a
+// washer/annulus shape would be: an outer rounded-square boundary with an
+// inner rounded-square hole cut out of it.
+function createRoundedSquareRingGeometry(outerHalf: number, innerHalf: number, cornerRadius: number) {
+  const shape = new THREE.Shape();
+  traceRoundedSquare(shape, outerHalf, cornerRadius);
+
+  const hole = new THREE.Path();
+  const innerCornerRadius = cornerRadius * (innerHalf / outerHalf);
+  traceRoundedSquare(hole, innerHalf, innerCornerRadius);
+  shape.holes.push(hole);
+
+  return new THREE.ShapeGeometry(shape);
+}
 
 export function WebXRPlacementViewer({
   glbUrl,
@@ -149,7 +187,8 @@ export function WebXRPlacementViewer({
       sessionRef.current = session;
 
       // dom-overlay was optional — if it didn't activate, domOverlayState will
-      // be absent and our coaching UI won't be visible during the session.
+      // be absent and our coaching UI (and pinch-to-scale, which depends on
+      // real DOM touch events) won't be available during the session.
       setDomOverlaySupported(Boolean((session as any).domOverlayState));
 
       await runArSession(session);
@@ -187,8 +226,11 @@ export function WebXRPlacementViewer({
     dirLight.position.set(0.5, 1, 0.5);
     scene.add(dirLight);
 
-    // Reticle: a simple ring + small axis indicator, hidden until a hit is found.
-    const reticleGeometry = new THREE.RingGeometry(0.07, 0.09, 32).rotateX(-Math.PI / 2);
+    // Reticle: a rounded-square "frame" outline + small axis indicator,
+    // hidden until a hit is found. Stays visible even after the model has
+    // been placed, so the user can always see where the next tap would move
+    // it to (previously it hid itself once placed).
+    const reticleGeometry = createRoundedSquareRingGeometry(0.09, 0.07, 0.03).rotateX(-Math.PI / 2);
     const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
     reticle.matrixAutoUpdate = false;
@@ -200,7 +242,8 @@ export function WebXRPlacementViewer({
     // user "the environment as it's scanned" — distinct from the reticle,
     // which only shows where the model *would* go. Planes typically appear
     // faster than a clean hit-test result does, so this also gives earlier
-    // visual feedback that scanning is working.
+    // visual feedback that scanning is working. These stay visible even
+    // after the model is placed (previously they hid themselves then).
     const planeMeshes = new Map<XRPlane, THREE.Mesh>();
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x4ade80,
@@ -260,6 +303,7 @@ export function WebXRPlacementViewer({
     let placedModel: THREE.Object3D | null = null;
     let modelLoaded = false;
     let pendingModel: THREE.Object3D | null = null;
+    let baseModelScale = modelScale; // the "1.0 pinch" scale, before any pinch multiplier
 
     // --- Drag-to-move state ---
     // draggingInputSource tracks which XRInputSource (touch point) is
@@ -270,6 +314,58 @@ export function WebXRPlacementViewer({
     // to the viewer-center reticle right after a drag.
     let draggingInputSource: XRInputSource | null = null;
     let dragOccurred = false;
+
+    // --- Pinch-to-scale state ---
+    // Read directly from DOM touch events on the dom-overlay element rather
+    // than XR input sources, since a 2-finger pinch is naturally expressed
+    // as ordinary browser TouchEvents (dom-overlay is specifically designed
+    // to receive these during an immersive session). We only take over
+    // (preventDefault) once a second finger actually lands, so single-finger
+    // taps/drags keep working exactly as before, routed through the normal
+    // WebXR 'select'/transient-hit-test flow untouched.
+    let pinchStartDistance: number | null = null;
+    let pinchStartScale: THREE.Vector3 | null = null;
+
+    function touchDistance(touches: TouchList): number {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    }
+
+    function onOverlayTouchStart(e: TouchEvent) {
+      if (e.touches.length === 2 && placedModel) {
+        e.preventDefault();
+        pinchStartDistance = touchDistance(e.touches);
+        pinchStartScale = placedModel.scale.clone();
+      }
+    }
+
+    function onOverlayTouchMove(e: TouchEvent) {
+      if (pinchStartDistance !== null && pinchStartScale && e.touches.length === 2 && placedModel) {
+        e.preventDefault();
+        const distance = touchDistance(e.touches);
+        const ratio = distance / pinchStartDistance;
+        // Clamp so a pinch can't shrink the dish to nothing or blow it up to
+        // an absurd size relative to where it started.
+        const clamped = THREE.MathUtils.clamp(ratio, 0.2, 5);
+        placedModel.scale.copy(pinchStartScale).multiplyScalar(clamped);
+      }
+    }
+
+    function onOverlayTouchEnd(e: TouchEvent) {
+      if (e.touches.length < 2) {
+        pinchStartDistance = null;
+        pinchStartScale = null;
+      }
+    }
+
+    const overlayEl = overlayRef.current;
+    if (overlayEl) {
+      overlayEl.addEventListener("touchstart", onOverlayTouchStart, { passive: false });
+      overlayEl.addEventListener("touchmove", onOverlayTouchMove, { passive: false });
+      overlayEl.addEventListener("touchend", onOverlayTouchEnd, { passive: false });
+      overlayEl.addEventListener("touchcancel", onOverlayTouchEnd, { passive: false });
+    }
 
     // Load the GLB BEFORE starting the XR session so:
     // 1. We know the model is ready before the user can tap
@@ -310,6 +406,7 @@ export function WebXRPlacementViewer({
         pivot.scale.setScalar(modelScale);
         console.warn("[WebXRPlacementViewer] Degenerate bounding box — using raw modelScale.");
       }
+      baseModelScale = pivot.scale.x;
 
       // Re-center: model base sits at y=0 (the surface), horizontally centered
       box.setFromObject(pivot);
@@ -371,6 +468,12 @@ export function WebXRPlacementViewer({
         return;
       }
 
+      // A pinch was just in progress on this same gesture — don't also
+      // reinterpret its release as a placement tap.
+      if (pinchStartDistance !== null) {
+        return;
+      }
+
       if (!reticle.visible) return;
       if (!modelLoaded || !pendingModel) {
         console.warn("[WebXRPlacementViewer] Tap before model ready — should not happen now.");
@@ -417,6 +520,12 @@ export function WebXRPlacementViewer({
       session.removeEventListener("select", onSelect);
       session.removeEventListener("selectstart", onSelectStart);
       session.removeEventListener("selectend", onSelectEnd);
+      if (overlayEl) {
+        overlayEl.removeEventListener("touchstart", onOverlayTouchStart);
+        overlayEl.removeEventListener("touchmove", onOverlayTouchMove);
+        overlayEl.removeEventListener("touchend", onOverlayTouchEnd);
+        overlayEl.removeEventListener("touchcancel", onOverlayTouchEnd);
+      }
       hitTestSource?.cancel?.();
       transientHitTestSource?.cancel?.();
       renderer.setAnimationLoop(null);
@@ -445,9 +554,9 @@ export function WebXRPlacementViewer({
       reticle.visible = false;
 
       syncPlaneMeshes(frame, localSpace);
-      for (const mesh of planeMeshes.values()) {
-        mesh.visible = !placedModel;
-      }
+      // Planes and the reticle intentionally stay visible even once a model
+      // has been placed, so the user can always see the scanned surface and
+      // where a re-tap would move the model to.
 
       if (hitTestSource && viewerPose) {
         const hitTestResults = frame.getHitTestResults(hitTestSource);
@@ -455,11 +564,7 @@ export function WebXRPlacementViewer({
           const pose = hitTestResults[0].getPose(localSpace);
           if (pose) {
             reticle.matrix.fromArray(pose.transform.matrix);
-            // Only show the reticle (i.e. invite re-placement) before the
-            // first placement — once placed, hide it so it doesn't look like
-            // a second target is being offered. Remove this guard if you'd
-            // rather always allow re-placement via the reticle.
-            reticle.visible = !placedModel;
+            reticle.visible = true;
           }
         }
       }
@@ -510,8 +615,12 @@ export function WebXRPlacementViewer({
 
       {/* This element becomes the WebXR DOM overlay once the session starts.
           It's also rendered normally (non-immersive) before/after the
-          session, so the same JSX covers both states. */}
-      <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          session, so the same JSX covers both states. pointerEvents is
+          "auto" so it can receive real two-finger touch events for
+          pinch-to-scale — single-finger taps/drags are left alone (we only
+          call preventDefault once a second finger lands), so they still
+          pass through to WebXR's own 'select' handling untouched. */}
+      <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "auto", touchAction: "none" }}>
         <div
           style={{
             position: "absolute",
@@ -528,6 +637,7 @@ export function WebXRPlacementViewer({
             letterSpacing: "-0.01em",
             whiteSpace: "nowrap",
             color: T.accent,
+            pointerEvents: "none",
           }}
         >
           {name}
@@ -560,7 +670,7 @@ export function WebXRPlacementViewer({
         )}
 
         {phase === "active-searching" && (
-          <div style={coachStyle}>
+          <div style={{ ...coachStyle, pointerEvents: "none" }}>
             <span style={{ fontWeight: 700, color: T.accent }}>Move your phone slowly</span>
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
               Green highlights show surfaces found so far — tap one to place.
@@ -569,15 +679,15 @@ export function WebXRPlacementViewer({
         )}
 
         {phase === "active-placed" && (
-          <div style={{ ...coachStyle, top: "auto", bottom: "16%" }}>
+          <div style={{ ...coachStyle, top: "auto", bottom: "16%", pointerEvents: "none" }}>
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
-              Tap elsewhere to move it, or press and drag to slide it.
+              Tap elsewhere to move it, drag to slide it, or pinch with two fingers to resize it.
             </span>
           </div>
         )}
 
         {phase === "active-searching" && !domOverlaySupported && (
-          <div style={{ ...coachStyle, top: "auto", bottom: "30%" }}>
+          <div style={{ ...coachStyle, top: "auto", bottom: "30%", pointerEvents: "none" }}>
             <span style={{ color: "#f87171", fontSize: "0.78rem" }}>
               On-screen guidance isn't available in this browser — point at a
               flat surface and tap to place.
