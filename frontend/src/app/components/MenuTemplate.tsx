@@ -338,7 +338,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
       }}>
 
         {/* Desktop navbar */}
-        <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem 0 0", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
           {/* Restaurant logo */}
           <div style={{ flexShrink: 0 }}>

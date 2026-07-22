@@ -365,7 +365,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
       }}>
 
         {/* Desktop */}
-        <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem 0 0", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <div style={{ flexShrink: 0 }}>
             <RestaurantLogo logo={logo} name={restaurantName} height={44} />
           </div>
