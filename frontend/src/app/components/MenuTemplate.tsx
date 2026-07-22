@@ -341,7 +341,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
           {/* Restaurant logo — small circular badge, top-left corner */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={40} accentColor={primaryColor} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={40} />
 
           {/* Search */}
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
@@ -392,7 +392,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
           </button>
 
           {/* Restaurant logo — small circular badge, top-left corner */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={32} accentColor={primaryColor} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={32} />
 
           {/* Spacer pushes the search toggle to the right, same as before */}
           <div style={{ flex: 1 }} />
