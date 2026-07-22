@@ -4,59 +4,73 @@ import { useState } from "react";
  * RestaurantLogo
  * ---------------------------------------------------------------------------
  * Shared logo component used by every restaurant menu template (MenuTemplate,
- * CheeziousMenu, and any future templates) so logos behave and look
- * identically everywhere instead of each template reimplementing its own
- * version.
+ * CheeziousMenu, and any future templates) so logos behave identically
+ * everywhere instead of each template reimplementing its own version.
  *
- * Rendered as a small circular avatar (like a profile picture) rather than a
- * free-form rectangular logo:
- *  - Logo set -> the image fills the circle via object-fit: cover.
- *  - No logo, or the image URL fails to load (404, network error, bad file)
- *    -> falls back to the restaurant's first initial on a colored circle,
- *    matching the same fallback convention already used for restaurant cards
- *    on the /restaurants directory page (RestaurantListPage.tsx).
+ * Renders as a small circular "profile picture" style badge, meant to sit in
+ * the corner of the header rather than compete for space as a full-size
+ * rectangular logo:
  *
- * `height` sets the avatar's diameter (it's also its width, since it's a
- * circle) — kept as `height` rather than renamed to `size` so existing call
- * sites (MenuTemplate, CheeziousMenu) didn't need to change their prop name.
+ *  - No logo set (or the field is empty/null) -> falls back to a colored
+ *    circle with the restaurant's first initial, instead of a broken/missing
+ *    image. Uses the same "colored circle + initial" convention as the
+ *    restaurant directory page (RestaurantListPage), so logo fallbacks look
+ *    consistent everywhere in the app, not just across menu templates.
+ *  - Logo URL set but the image itself fails to load (404, network error,
+ *    bad file) -> falls back to that same initial-letter circle instead of
+ *    showing a broken-image icon.
  */
-export function RestaurantLogo({ logo, name, height = 40 }: { logo: string; name: string; height?: number }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const showImage = Boolean(logo) && !imageFailed;
+export function RestaurantLogo({
+  logo,
+  name,
+  size = 40,
+  accentColor = "#c9762f",
+}: {
+  logo: string;
+  name: string;
+  /** Diameter of the circular badge, in pixels. Defaults to 40 (small, corner-badge sized). */
+  size?: number;
+  /** Background color used for the fallback initial-letter circle when there's no logo. */
+  accentColor?: string;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = Boolean(logo) && !imgFailed;
+  const initial = (name?.trim()?.charAt(0) || "?").toUpperCase();
 
   return (
     <div
       style={{
-        width: height,
-        height: height,
+        width: size,
+        height: size,
         borderRadius: "50%",
         overflow: "hidden",
         flexShrink: 0,
+        background: showImage ? "#fff" : accentColor,
+        border: "2px solid rgba(255,255,255,0.9)",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: showImage ? "#fff" : "#c9762f",
-        border: "1px solid rgba(0,0,0,0.1)",
       }}
     >
       {showImage ? (
         <img
           src={logo}
           alt={name}
+          onError={() => setImgFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          onError={() => setImageFailed(true)}
         />
       ) : (
         <span
           style={{
             color: "#fff",
             fontWeight: 800,
-            fontSize: Math.round(height * 0.42),
+            fontSize: size * 0.42,
             fontFamily: "'Poppins',sans-serif",
             lineHeight: 1,
           }}
         >
-          {name?.trim()?.charAt(0)?.toUpperCase() || "?"}
+          {initial}
         </span>
       )}
     </div>

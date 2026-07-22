@@ -366,9 +366,8 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
 
         {/* Desktop */}
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <div style={{ flexShrink: 0 }}>
-            <RestaurantLogo logo={logo} name={restaurantName} height={44} />
-          </div>
+          {/* Restaurant logo — small circular badge, top-left corner */}
+          <RestaurantLogo logo={logo} name={restaurantName} size={40} accentColor={primaryColor} />
 
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
             <span style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "#999", fontSize: "0.9rem", pointerEvents: "none" }}>🔍</span>
@@ -401,14 +400,16 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         </div>
 
         {/* Mobile */}
-        <div className="nav-mobile" style={{ width: "100%", padding: "0 1rem", display: "none", alignItems: "center" }}>
+        <div className="nav-mobile" style={{ width: "100%", padding: "0 1rem", display: "none", alignItems: "center", gap: "0.6rem" }}>
           <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.3rem", display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
             {[0,1,2].map(i => <span key={i} style={{ display: "block", width: 22, height: 2, background: "#333", borderRadius: 2 }} />)}
           </button>
 
-          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <RestaurantLogo logo={logo} name={restaurantName} height={38} />
-          </div>
+          {/* Restaurant logo — small circular badge, top-left corner */}
+          <RestaurantLogo logo={logo} name={restaurantName} size={32} accentColor={primaryColor} />
+
+          {/* Spacer pushes the search toggle to the right, same as before */}
+          <div style={{ flex: 1 }} />
 
           <button
             onClick={() => {

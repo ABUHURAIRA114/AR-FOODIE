@@ -340,10 +340,8 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
         {/* Desktop navbar */}
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
-          {/* Restaurant logo */}
-          <div style={{ flexShrink: 0 }}>
-            <RestaurantLogo logo={logo} name={restaurantName} height={44} />
-          </div>
+          {/* Restaurant logo — small circular badge, top-left corner */}
+          <RestaurantLogo logo={logo} name={restaurantName} size={40} accentColor={primaryColor} />
 
           {/* Search */}
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
@@ -384,7 +382,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
         </div>
 
         {/* Mobile navbar */}
-        <div className="nav-mobile" style={{ width: "100%", padding: "0 1rem", display: "none", alignItems: "center" }}>
+        <div className="nav-mobile" style={{ width: "100%", padding: "0 1rem", display: "none", alignItems: "center", gap: "0.6rem" }}>
           {/* Hamburger */}
           <button
             onClick={() => setSidebarOpen(true)}
@@ -393,10 +391,11 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
             {[0,1,2].map(i => <span key={i} style={{ display: "block", width: 22, height: 2, background: "#333", borderRadius: 2 }} />)}
           </button>
 
-          {/* Logo center */}
-          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <RestaurantLogo logo={logo} name={restaurantName} height={38} />
-          </div>
+          {/* Restaurant logo — small circular badge, top-left corner */}
+          <RestaurantLogo logo={logo} name={restaurantName} size={32} accentColor={primaryColor} />
+
+          {/* Spacer pushes the search toggle to the right, same as before */}
+          <div style={{ flex: 1 }} />
 
           {/* Search toggle */}
           <button
