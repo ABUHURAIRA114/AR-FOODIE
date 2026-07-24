@@ -80,6 +80,8 @@ class Category(models.Model):
 
 
 class Dish(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
     TONE_MAPPING_CHOICES = [
         ("neutral", "Neutral (Khronos PBR — accurate colours, good for food)"),
         ("aces",    "ACES (cinematic, slightly warm/contrasty)"),
