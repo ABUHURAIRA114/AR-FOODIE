@@ -16,7 +16,7 @@ import { RestaurantLogo } from "./RestaurantLogo";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Dish {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;

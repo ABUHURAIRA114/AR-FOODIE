@@ -7,7 +7,7 @@ import { WebXRPlacementViewer } from "./WebXRPlacementViewer";
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
 
 interface SceneData {
-  id: number;
+  id: string;
   name: string;
   description: string;
   glb_url: string | null;
