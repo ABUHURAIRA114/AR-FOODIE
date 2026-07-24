@@ -1,18 +1,21 @@
 /**
- * CheziousARMenu.tsx
- * AR Menu template — Dinenics Platform
- * 
- * BACKEND INTEGRATION:
- * All [BACKEND] comments show exactly where to plug in API calls.
- * This component accepts a `config` prop so any restaurant can use it.
+ * MenuTemplate.tsx
+ * Generic AR Menu template — Dinenics Platform
+ *
+ * Used by RestaurantMenuPage.tsx which fetches data from:
+ * GET /menu-api/{slug}/ → passes config + categories + dishes as props
+ *
+ * [BACKEND] comments mark integration points.
  */
 
 import { useState, useEffect, useRef } from "react";
+import React from "react";
+import { useNavigate } from "react-router";
 import { RestaurantLogo } from "./RestaurantLogo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Dish {
+export interface Dish {
   id: number;
   name: string;
   description: string;
@@ -21,162 +24,43 @@ interface Dish {
   image: string;
   arModelUrl: string | null;
   usdzUrl: string | null;
+  /** Link to the full AR viewer (WebXR / Scene Viewer / Quick Look / image-tracking) for this dish, or null if it has no 3D model. */
+  arViewUrl: string | null;
   categoryId: number;
 }
 
-interface Category {
+export interface Category {
   id: number;
   name: string;
   image: string;
 }
 
-// Restaurant branding config — passed as prop in production
-// [BACKEND] fetch('/api/restaurant/{slug}/config/') → RestaurantConfig
+// [BACKEND] Returned by GET /menu-api/{slug}/ → data.restaurant
 export interface RestaurantConfig {
   name: string;
   logo: string;
   primaryColor: string;
   headerBg: string;
-  appDownloadUrl?: string;
 }
 
-// ─── Default config (Cheezious) ───────────────────────────────────────────────
-const DEFAULT_CONFIG: RestaurantConfig = {
-  name: "Cheezious",
-  logo: "/logos/cheezious.png",
-  primaryColor: "#FFC200",
-  headerBg: "#f7f5f5",
-  appDownloadUrl: "https://cheezious.com",
-};
-
-// ─── Dummy data — replace with API calls ─────────────────────────────────────
-// [BACKEND] fetch('/api/restaurant/{slug}/categories/')
-const DUMMY_CATEGORIES: Category[] = [
-  { id: 1, name: "Thin Crust Pizza",    image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Pizza" },
-  { id: 2, name: "Malai Tikka",         image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Tikka" },
-  { id: 3, name: "Beef Pepperoni Pizza",image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Beef"  },
-  { id: 4, name: "Starters",            image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Start" },
-  { id: 5, name: "Somewhat Local",      image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Local" },
-  { id: 6, name: "Somewhat Social",     image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Social"},
-  { id: 7, name: "Burgers",             image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Burger"},
-  { id: 8, name: "Pasta",               image: "https://placehold.co/80x80/FFC200/1a2e1a?text=Pasta" },
-];
-
-// [BACKEND] fetch('/api/restaurant/{slug}/dishes/?category={id}&search={q}')
-const DUMMY_DISHES: Dish[] = [
-  { id: 1, name: "Thin Crust Beef Pizza",   description: "A Crispy Thin Crust Topped With Beef Pepperoni, Mozzarella Cheese, And Rich Marinara Sauce.", price: 1480, startingPrice: true,  image: "/cheezious_dishes/thin_crust.png",                              arModelUrl: null, usdzUrl: null, categoryId: 1 },
-  { id: 2, name: "Thin Crust Veggie Pizza", description: "Cheese Blend, Mushrooms, Sweet Corn, Black Olives, Onions, Capsicum And Tomatoes.",           price: 1290, startingPrice: true,  image: "https://placehold.co/340x240/f9f9f9/555?text=Veggie+Pizza",  arModelUrl: null, usdzUrl: null, categoryId: 1 },
-  { id: 3, name: "Thin Crust Cheese Pizza", description: "Extra Special Mozzarella Blend And Signature Sauce On A Crispy Thin Crust.",                   price: 1290, startingPrice: true,  image: "https://placehold.co/340x240/f9f9f9/555?text=Cheese+Pizza",  arModelUrl: null, usdzUrl: null, categoryId: 1 },
-  { id: 4, name: "Malai Tikka Classic",     description: "Tender chicken marinated in creamy malai sauce, grilled to perfection.",                       price: 990,  startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Malai+Tikka",   arModelUrl: null, usdzUrl: null, categoryId: 2 },
-  { id: 5, name: "Malai Tikka Platter",     description: "Full platter with naan, raita and fresh salad on the side.",                                   price: 1650, startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Tikka+Platter", arModelUrl: null, usdzUrl: null, categoryId: 2 },
-  { id: 6, name: "Beef Pepperoni Pizza",    description: "Classic beef pepperoni with rich mozzarella and tangy tomato base.",                           price: 1480, startingPrice: true,  image: "https://placehold.co/340x240/f9f9f9/555?text=Pepperoni",     arModelUrl: null, usdzUrl: null, categoryId: 3 },
-  { id: 7, name: "Chicken Wings",           description: "Crispy golden wings tossed in our signature sauce. Served with dip.",                          price: 890,  startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Wings",         arModelUrl: null, usdzUrl: null, categoryId: 4 },
-  { id: 8, name: "Mozzarella Sticks",       description: "Golden fried mozzarella sticks with marinara dipping sauce.",                                  price: 690,  startingPrice: false, image: "https://placehold.co/340x240/f9f9f9/555?text=Mozz+Sticks",  arModelUrl: null, usdzUrl: null, categoryId: 4 },
-];
-
-// ─── AR Modal ─────────────────────────────────────────────────────────────────
-function ARModal({ dish, onClose, dark, primaryColor }: {
-  dish: Dish; onClose: () => void; dark: boolean; primaryColor: string;
-}) {
-  const bg    = dark ? "#1c1c1c" : "#fff";
-  const text  = dark ? "#fff"    : "#1a1a1a";
-  const sub   = dark ? "#aaa"    : "#666";
-  const dash  = dark ? "#444"    : "#ddd";
-
-  return (
-    <div onClick={onClose} style={{
-      position: "fixed", inset: 0, zIndex: 2000,
-      background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)",
-      display: "flex", alignItems: "flex-end", justifyContent: "center",
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: bg, width: "100%", maxWidth: 560,
-        borderRadius: "20px 20px 0 0", padding: "1.5rem 1.5rem 2rem",
-        boxShadow: "0 -8px 40px rgba(0,0,0,0.25)",
-        maxHeight: "88vh", overflowY: "auto",
-      }}>
-        {/* Handle */}
-        <div style={{ width: 36, height: 4, background: dash, borderRadius: 2, margin: "0 auto 1.2rem" }} />
-
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-          <div style={{ flex: 1, paddingRight: "1rem" }}>
-            <h2 style={{ margin: "0 0 0.4rem", fontSize: "1.25rem", fontWeight: 700, color: text, fontFamily: "'Poppins',sans-serif" }}>
-              {dish.name}
-            </h2>
-            <p style={{ margin: 0, fontSize: "0.875rem", color: sub, lineHeight: 1.6 }}>{dish.description}</p>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: sub }}>✕</button>
-        </div>
-
-        {/* Model viewer or placeholder */}
-        {dish.arModelUrl ? (
-          <div style={{ borderRadius: 14, overflow: "hidden", background: dark ? "#111" : "#f5f5f5", marginBottom: "1.2rem", height: 280 }}>
-            {/* @ts-ignore — model-viewer is a custom element */}
-            <model-viewer
-              src={dish.arModelUrl}
-              ios-src={dish.usdzUrl ?? undefined}
-              alt={dish.name}
-              ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto"
-              camera-controls auto-rotate shadow-intensity="1"
-              style={{ width: "100%", height: "100%", background: "transparent" }}
-            >
-              {/* @ts-ignore */}
-              <button slot="ar-button" style={{
-                position: "absolute", bottom: "1rem", left: "50%", transform: "translateX(-50%)",
-                background: primaryColor, color: "#000", border: "none", borderRadius: 10,
-                padding: "0.7rem 2rem", fontWeight: 700, fontSize: "0.95rem", cursor: "pointer",
-              }}>
-                📱 View On Your Table
-              </button>
-            </model-viewer>
-          </div>
-        ) : (
-          <div style={{
-            borderRadius: 14, background: dark ? "#111" : "#f5f5f5",
-            padding: "2.5rem", textAlign: "center", marginBottom: "1.2rem",
-            border: `2px dashed ${dash}`,
-          }}>
-            <p style={{ margin: 0, fontSize: "2rem" }}>🚧</p>
-            <p style={{ margin: "0.5rem 0 0", color: sub, fontSize: "0.9rem" }}>AR model coming soon</p>
-          </div>
-        )}
-
-        {/* Price + close */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "1.3rem", fontWeight: 700, color: "#e8472a", fontFamily: "'Poppins',sans-serif" }}>
-              Rs. {dish.price.toLocaleString()}
-            </span>
-            {dish.startingPrice && (
-              <span style={{ background: "#e8472a", color: "#fff", fontSize: "0.7rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: 20 }}>
-                Starting Price
-              </span>
-            )}
-          </div>
-          <button onClick={onClose} style={{
-            background: primaryColor, color: "#000", border: "none",
-            borderRadius: 8, padding: "0.55rem 1.4rem",
-            fontWeight: 700, fontSize: "0.9rem", cursor: "pointer",
-          }}>Close</button>
-        </div>
-      </div>
-    </div>
-  );
+export interface MenuTemplateProps {
+  config: RestaurantConfig;
+  categories: Category[];
+  dishes: Dish[];
 }
 
 // ─── Dish Card ────────────────────────────────────────────────────────────────
 function DishCard({ dish, onShowAR, dark, primaryColor }: {
   dish: Dish; onShowAR: (d: Dish) => void; dark: boolean; primaryColor: string;
 }) {
-  const cardBg  = dark ? "#1e1e1e" : "#fff";
-  const border  = dark ? "#2a2a2a" : "#ececec";
-  const imgBg   = dark ? "#141414" : "#fff";
-  const text    = dark ? "#f0f0f0" : "#1a1a1a";
-  const sub     = dark ? "#999"    : "#888";
-  const btnBg   = dish.arModelUrl ? primaryColor        : (dark ? "#2a2a2a" : "#f5f5f5");
-  const btnColor= dish.arModelUrl ? "#000"              : (dark ? "#666"    : "#aaa");
-  const btnBorder=dish.arModelUrl ? primaryColor        : (dark ? "#333"    : "#e0e0e0");
+  const cardBg   = dark ? "#1e1e1e" : "#fff";
+  const border   = dark ? "#2a2a2a" : "#ececec";
+  const imgBg    = dark ? "#141414" : "#fff";
+  const text     = dark ? "#f0f0f0" : "#1a1a1a";
+  const sub      = dark ? "#999"    : "#888";
+  const btnBg    = dish.arModelUrl ? primaryColor : (dark ? "#2a2a2a" : "#f5f5f5");
+  const btnColor = dish.arModelUrl ? "#000"       : (dark ? "#666"    : "#aaa");
+  const btnBorder= dish.arModelUrl ? primaryColor : (dark ? "#333"    : "#e0e0e0");
 
   return (
     <div
@@ -184,7 +68,7 @@ function DishCard({ dish, onShowAR, dark, primaryColor }: {
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = dark ? "0 6px 20px rgba(0,0,0,0.5)" : "0 6px 20px rgba(0,0,0,0.1)"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = dark ? "0 2px 8px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.05)"; }}
     >
-      {/* Image */}
+      {/* Image area */}
       <div style={{ position: "relative", background: imgBg, padding: "1.2rem 1.2rem 0.5rem", textAlign: "center" }}>
         <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem", color: "#e8472a", fontSize: "1.1rem", cursor: "pointer" }}>♡</div>
         {dish.arModelUrl && (
@@ -237,17 +121,14 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
   const scroll = (dir: "left" | "right") =>
     scrollRef.current?.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
 
-  const barBg  = dark ? "#1a1a1a" : "#fff";
-  const border = dark ? "#2a2a2a" : "#ececec";
-  const arrowBorder = dark ? "#444" : "#ddd";
-  const arrowBg = dark ? "#1a1a1a" : "#fff";
-  const arrowColor = dark ? "#ccc" : "#888";
-
+  const barBg       = dark ? "#1a1a1a" : "#fff";
+  const border      = dark ? "#2a2a2a" : "#ececec";
   const arrowStyle: React.CSSProperties = {
     position: "absolute", zIndex: 2, width: 32, height: 32,
-    borderRadius: "50%", border: `1.5px solid ${arrowBorder}`,
-    background: arrowBg, display: "flex", alignItems: "center",
-    justifyContent: "center", cursor: "pointer", color: arrowColor,
+    borderRadius: "50%", border: `1.5px solid ${dark ? "#444" : "#ddd"}`,
+    background: dark ? "#1a1a1a" : "#fff",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    cursor: "pointer", color: dark ? "#ccc" : "#888",
     fontSize: "0.85rem", flexShrink: 0,
   };
 
@@ -255,7 +136,6 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
     <div style={{ background: barBg, borderBottom: `1px solid ${border}`, position: "sticky", top: 68, zIndex: 90 }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", display: "flex", alignItems: "center" }}>
         <button onClick={() => scroll("left")} style={{ ...arrowStyle, left: 0 }}>‹</button>
-
         <div ref={scrollRef} style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none", padding: "0 40px", flex: 1 }}>
           {categories.map(cat => (
             <button
@@ -276,44 +156,56 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
             </button>
           ))}
         </div>
-
         <button onClick={() => scroll("right")} style={{ ...arrowStyle, right: 0 }}>›</button>
       </div>
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-interface Props {
-  config?: RestaurantConfig;
-  // [BACKEND] In production pass categories + dishes from parent after API fetch
-  categories?: Category[];
-  dishes?: Dish[];
-}
+// RestaurantLogo now lives in ./RestaurantLogo.tsx, shared with every other
+// menu template so logo fallback/error handling behaves identically
+// everywhere instead of diverging per-template.
 
-export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = DUMMY_CATEGORIES, dishes = DUMMY_DISHES }: Props) {
-  const [dark, setDark]               = useState(false);
-  const [activeCategory, setActiveCategory] = useState(categories[0]?.id ?? 1);
-  const [search, setSearch]           = useState("");
-  const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
-  const [scrolled, setScrolled]       = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function MenuTemplate({ config, categories, dishes }: MenuTemplateProps) {
+  const navigate = useNavigate();
+  const [dark, setDark]                   = useState(false);
+  const [activeCategory, setActiveCategory] = useState<number>(categories[0]?.id ?? 0);
+  const [search, setSearch]               = useState("");
+  const [scrolled, setScrolled]           = useState(false);
+  const [sidebarOpen, setSidebarOpen]     = useState(false);
 
   const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
-  // Filter + group
+  // Launches the full AR viewer (WebXR / Scene Viewer / Quick Look /
+  // image-tracking fallback) for a dish, in place of the old in-page AR
+  // modal preview.
+  const handleShowAR = (dish: Dish) => {
+    if (dish.arViewUrl) navigate(dish.arViewUrl);
+  };
+
+  // Update active category when categories load
+  useEffect(() => {
+    if (categories.length > 0 && activeCategory === 0) {
+      setActiveCategory(categories[0].id);
+    }
+  }, [categories]);
+
+  // Filter dishes by search
   const visibleDishes = dishes.filter(d =>
     search === "" ||
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     d.description.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Group dishes by category
   const groupedDishes = categories
     .map(cat => ({ category: cat, dishes: visibleDishes.filter(d => d.categoryId === cat.id) }))
     .filter(g => g.dishes.length > 0);
 
-  // Scroll spy — highlight active category as user scrolls
+  // Scroll spy — highlights active category as user scrolls
   useEffect(() => {
+    if (groupedDishes.length === 0) return;
     const observer = new IntersectionObserver(
       entries => {
         entries.forEach(entry => {
@@ -329,14 +221,14 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
     return () => observer.disconnect();
   }, [groupedDishes.length]);
 
-  // Scroll shadow on navbar
+  // Navbar shadow on scroll
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Auto-scroll category bar to keep active button visible
+  // Keep active category visible in category bar
   useEffect(() => {
     const el = document.querySelector(`[data-cat-btn="${activeCategory}"]`) as HTMLElement;
     el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
@@ -364,11 +256,13 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         transition: "box-shadow 0.3s",
       }}>
 
-        {/* Desktop */}
+        {/* Desktop navbar */}
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+
           {/* Restaurant logo — small circular badge, top-left corner */}
           <RestaurantLogo logo={logo} name={restaurantName} size={40} />
 
+          {/* Search */}
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
             <span style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "#999", fontSize: "0.9rem", pointerEvents: "none" }}>🔍</span>
             <input
@@ -380,11 +274,17 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
             />
           </div>
 
+          {/* Right buttons */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexShrink: 0 }}>
-            <button onClick={() => setDark(d => !d)} style={{ background: "rgba(0,0,0,0.06)", border: "1px solid #ddd", borderRadius: 8, padding: "0.5rem 0.65rem", cursor: "pointer", fontSize: "1rem", transition: "background 0.2s" }}>
+            {/* Dark mode */}
+            <button
+              onClick={() => setDark(d => !d)}
+              style={{ background: "rgba(0,0,0,0.06)", border: "1px solid #ddd", borderRadius: 8, padding: "0.5rem 0.65rem", cursor: "pointer", fontSize: "1rem", transition: "background 0.2s" }}
+            >
               {dark ? "☀️" : "🌙"}
             </button>
 
+            {/* Login — [BACKEND] onClick → navigate to /login or open auth modal */}
             <button
               style={{ background: "#fff", color: "#1a2e1a", border: `2px solid ${primaryColor}`, borderRadius: 8, padding: "0.5rem 1.1rem", fontWeight: 600, fontSize: "0.95rem", cursor: "pointer", fontFamily: "'Poppins',sans-serif", display: "flex", alignItems: "center", gap: "0.35rem", transition: "background 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s", whiteSpace: "nowrap" }}
               onMouseEnter={e => { e.currentTarget.style.background = primaryColor; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 4px 12px ${primaryColor}66`; }}
@@ -393,15 +293,20 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
               👤 LOGIN
             </button>
 
+            {/* Dinenics branding */}
             <div style={{ borderLeft: "1px solid #ddd", paddingLeft: "0.6rem", flexShrink: 0 }}>
               <img src="/logos/dinenics.png" alt="Dinenics" height={40} style={{ objectFit: "contain", display: "block", maxWidth: 190 }} />
             </div>
           </div>
         </div>
 
-        {/* Mobile */}
+        {/* Mobile navbar */}
         <div className="nav-mobile" style={{ width: "100%", padding: "0 1rem", display: "none", alignItems: "center", gap: "0.6rem" }}>
-          <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.3rem", display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
+          {/* Hamburger */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: "0.3rem", display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}
+          >
             {[0,1,2].map(i => <span key={i} style={{ display: "block", width: 22, height: 2, background: "#333", borderRadius: 2 }} />)}
           </button>
 
@@ -411,6 +316,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
           {/* Spacer pushes the search toggle to the right, same as before */}
           <div style={{ flex: 1 }} />
 
+          {/* Search toggle */}
           <button
             onClick={() => {
               const el = document.getElementById("mobile-search-bar");
@@ -434,22 +340,29 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
       {sidebarOpen && (
         <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 3000, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(3px)" }}>
           <div onClick={e => e.stopPropagation()} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 260, background: dark ? "#1a1a1a" : "#fff", padding: "1.5rem 1.25rem", display: "flex", flexDirection: "column", gap: "1.5rem", boxShadow: "-8px 0 30px rgba(0,0,0,0.2)" }}>
+
             <button onClick={() => setSidebarOpen(false)} style={{ alignSelf: "flex-end", background: "none", border: "none", fontSize: "1.4rem", cursor: "pointer", color: dark ? "#fff" : "#333" }}>✕</button>
 
+            {/* Dinenics branding in sidebar */}
             <div style={{ textAlign: "center", paddingBottom: "1rem", borderBottom: `1px solid ${dark ? "#333" : "#eee"}` }}>
               <img src="/logos/dinenics.png" alt="Dinenics" height={36} style={{ objectFit: "contain" }} />
               <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem", color: dark ? "#888" : "#999", fontFamily: "'Poppins',sans-serif" }}>AR Menu powered by Dinenics</p>
             </div>
 
+            {/* Login — [BACKEND] onClick → navigate to /login */}
             <button style={{ background: primaryColor, color: "#000", border: "none", borderRadius: 10, padding: "0.75rem", fontWeight: 700, fontSize: "1rem", cursor: "pointer", fontFamily: "'Poppins',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
               👤 Login
             </button>
 
+            {/* Dark mode toggle */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", background: dark ? "#2a2a2a" : "#f5f5f5", borderRadius: 10 }}>
               <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: "0.9rem", fontWeight: 600, color: dark ? "#fff" : "#333" }}>
                 {dark ? "🌙 Dark Mode" : "☀️ Light Mode"}
               </span>
-              <button onClick={() => setDark(d => !d)} style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: dark ? primaryColor : "#ddd", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+              <button
+                onClick={() => setDark(d => !d)}
+                style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: dark ? primaryColor : "#ddd", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
+              >
                 <span style={{ position: "absolute", top: 3, left: dark ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
               </button>
             </div>
@@ -459,8 +372,11 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
 
       {/* ── Category Bar ── */}
       <CategoryBar
-        categories={categories} active={activeCategory}
-        onSelect={handleCategorySelect} dark={dark} primaryColor={primaryColor}
+        categories={categories}
+        active={activeCategory}
+        onSelect={handleCategorySelect}
+        dark={dark}
+        primaryColor={primaryColor}
       />
 
       {/* ── Dish Sections ── */}
@@ -478,7 +394,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
               </h2>
               <div className="dish-grid">
                 {catDishes.map(dish => (
-                  <DishCard key={dish.id} dish={dish} onShowAR={setSelectedDish} dark={dark} primaryColor={primaryColor} />
+                  <DishCard key={dish.id} dish={dish} onShowAR={handleShowAR} dark={dark} primaryColor={primaryColor} />
                 ))}
               </div>
             </div>
@@ -486,8 +402,12 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         ) : (
           <div style={{ textAlign: "center", padding: "5rem 1rem", color: dark ? "#666" : "#bbb" }}>
             <p style={{ fontSize: "2.5rem", margin: "0 0 0.5rem" }}>🍽️</p>
-            <p style={{ fontSize: "1rem", fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>No dishes found</p>
-            <p style={{ fontSize: "0.85rem", marginTop: "0.3rem" }}>Try clearing your search</p>
+            <p style={{ fontSize: "1rem", fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
+              {search ? "No dishes found" : "No dishes added yet"}
+            </p>
+            <p style={{ fontSize: "0.85rem", marginTop: "0.3rem" }}>
+              {search ? "Try clearing your search" : "Check back soon"}
+            </p>
           </div>
         )}
       </main>
@@ -498,10 +418,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         <a href="https://dinenics.com" style={{ color: primaryColor, textDecoration: "none", fontWeight: 700 }}>Dinenics.com</a>
       </footer>
 
-      {/* ── AR Modal ── */}
-      {selectedDish && <ARModal dish={selectedDish} onClose={() => setSelectedDish(null)} dark={dark} primaryColor={primaryColor} />}
-
-      {/* ── Styles ── */}
+      {/* ── Global styles ── */}
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { display: none; }
@@ -517,8 +434,8 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         }
 
         @media (max-width: 640px) {
-          .nav-desktop { display: none  !important; }
-          .nav-mobile  { display: flex  !important; }
+          .nav-desktop { display: none !important; }
+          .nav-mobile  { display: flex !important; }
           .dish-grid   { grid-template-columns: 1fr 1fr !important; gap: 0.65rem !important; }
         }
 

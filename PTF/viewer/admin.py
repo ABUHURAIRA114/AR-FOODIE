@@ -1,7 +1,6 @@
 from django.contrib import admin
-from .models import Response, Scene,Feedback
+from .models import Response, Feedback
 
-admin.site.register(Scene)
 admin.site.register(Response)
 
 @admin.register(Feedback)

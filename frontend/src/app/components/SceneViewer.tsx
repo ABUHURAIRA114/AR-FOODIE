@@ -7,10 +7,9 @@ import { WebXRPlacementViewer } from "./WebXRPlacementViewer";
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
 
 interface SceneData {
-  id: string;
+  id: number;
   name: string;
   description: string;
-  parent: string;
   glb_url: string | null;
   usdz_url: string | null;
   /** Compiled MindAR .mind target file for the image-tracking fallback. */
@@ -20,7 +19,7 @@ interface SceneData {
   shadow_softness: number;
   tone_mapping: string;
   environment_image: string;
-  environment_image_url: string | null;
+  environment_image_url?: string | null;
   ar_scale: "auto" | "fixed";
   webxr_model_scale: number;
 }
@@ -152,7 +151,7 @@ export function SceneViewer() {
     setShowArGuide(false);
     setWebXrActive(false);
 
-    fetch(`${API_URL}/api/scene/${id}/`, { credentials: "include" })
+    fetch(`${API_URL}/menu-api/dish/${id}/`, { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw new Error(`Request failed: ${r.status}`);
         return r.json();
@@ -324,139 +323,141 @@ export function SceneViewer() {
         </div>
       )}
 
-      {/* AR status / error toast */}
-      {arMessage && (
+      {/*
+        UNIFIED BOTTOM ACTION STACK
+        ---------------------------------------------------------------
+        Everything that can appear near the bottom of the screen at once
+        (the AR status toast, our WebXR button, and the image-tracking
+        button) used to be positioned independently with hand-tuned
+        percentage/calc offsets. That's what caused the overlap — each
+        offset was guessed in isolation and didn't account for the
+        others' actual rendered height on a given screen size.
+
+        Instead, everything here is a normal flow child of ONE flex
+        column with a real `gap`, so spacing is always correct no matter
+        which combination of items is visible. `column-reverse` means
+        the first JSX child sits at the bottom (anchored to the same
+        spot as model-viewer's native AR button below) and each
+        additional item stacks upward from there.
+
+        The one thing NOT in this stack is model-viewer's native
+        Scene Viewer / Quick Look button — it must stay physically
+        nested inside <model-viewer> for its slot to work. It's pinned
+        at a fixed bottom:10%, so this stack's own anchor shifts up by
+        one button's height + gap whenever that native button is the
+        one actually visible (i.e. whenever webXrSupported is false).
+      */}
+      {!arActive && !modelLoading && (
         <div
           style={{
             position: "absolute",
-            bottom: "16%",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 11,
-            background: "rgba(13,26,31,0.9)",
-            border: `1px solid ${T.border}`,
-            borderRadius: 10,
-            padding: "0.6rem 1.1rem",
-            fontSize: "0.85rem",
-            color: "#f87171",
-            maxWidth: "80%",
-            textAlign: "center",
-          }}
-        >
-          {arMessage}
-        </div>
-      )}
-
-      {/*
-        PRIMARY AR ENTRY POINT — priority order:
-          1) Our own WebXR tap-to-place flow (WebXRPlacementViewer), shown
-             whenever the browser supports WebXR immersive-ar + hit-test.
-             This is a from-scratch AR session with real reticle + tap
-             placement — no Scene Viewer / Quick Look / Google or Apple AR
-             involved.
-          2) If WebXR isn't supported, we fall back to model-viewer's native
-             AR button (slotted below), which auto-routes per platform via
-             ar-modes="scene-viewer quick-look":
-               - iOS  -> Quick Look (via ios-src / quick-look-browsers)
-               - Android (no WebXR hit-test) -> Scene Viewer
-        Only one of the two buttons is ever visible/clickable at a time,
-        controlled by webXrSupported.
-      */}
-      {!arActive && !modelLoading && webXrSupported && (
-        <button
-          onClick={() => setWebXrActive(true)}
-          style={{
-            position: "absolute",
-            bottom: "10%",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 10,
-            background: T.primary,
-            color: "#fff",
-            border: "none",
-            borderRadius: 12,
-            padding: "0.85rem 2.4rem",
-            fontSize: "1rem",
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
-          View in AR
-        </button>
-      )}
-
-      {/*
-        IMAGE TRACKING trigger — always shown whenever a compiled .mind
-        target exists for this scene, as an alternative AR method alongside
-        WebXR / Scene Viewer / Quick Look (not just as a last-resort
-        fallback). Positioned above the primary AR button so the two never
-        overlap when both are available at once.
-      */}
-      {!arActive && !modelLoading && scene.mind_target_url && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "calc(10% + 72px)",
+            bottom: webXrSupported ? "10%" : "calc(10% + 64px)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 10,
             display: "flex",
+            flexDirection: "column-reverse",
             alignItems: "center",
-            gap: "0.6rem",
+            gap: "0.75rem",
           }}
         >
-          <button
-            onClick={() => setImageTrackingActive(true)}
-            style={{
-              background: T.primary,
-              color: "#fff",
-              border: "none",
-              borderRadius: 12,
-              padding: "0.85rem 2.4rem",
-              fontSize: "1rem",
-              fontWeight: 700,
-              cursor: "pointer",
-              boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-            Scan to view in AR
-          </button>
+          {webXrSupported && (
+            <button
+              onClick={() => setWebXrActive(true)}
+              style={{
+                background: T.primary,
+                color: "#fff",
+                border: "none",
+                borderRadius: 12,
+                padding: "0.85rem 2.4rem",
+                fontSize: "1rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              View in AR
+            </button>
+          )}
 
-          <button
-            onClick={() => setShowArGuide(true)}
-            aria-label="How does this work?"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: "rgba(13,26,31,0.85)",
-              border: `1px solid ${T.border}`,
-              color: T.accent,
-              fontWeight: 700,
-              fontSize: "1rem",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-          >
-            ?
-          </button>
+          {arMessage && (
+            <div
+              style={{
+                background: "rgba(13,26,31,0.9)",
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                padding: "0.6rem 1.1rem",
+                fontSize: "0.85rem",
+                color: "#f87171",
+                maxWidth: "80vw",
+                textAlign: "center",
+              }}
+            >
+              {arMessage}
+            </div>
+          )}
+
+          {/*
+            IMAGE TRACKING trigger — shown whenever a compiled .mind
+            target exists for this scene, as an alternative AR method
+            alongside WebXR / Scene Viewer / Quick Look (not just as a
+            last-resort fallback).
+          */}
+          {scene.mind_target_url && (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <button
+                onClick={() => setImageTrackingActive(true)}
+                style={{
+                  background: T.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 12,
+                  padding: "0.85rem 2.4rem",
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+                Scan to view in AR
+              </button>
+
+              <button
+                onClick={() => setShowArGuide(true)}
+                aria-label="How does this work?"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "rgba(13,26,31,0.85)",
+                  border: `1px solid ${T.border}`,
+                  color: T.accent,
+                  fontWeight: 700,
+                  fontSize: "1rem",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                ?
+              </button>
+            </div>
+          )}
         </div>
       )}
 

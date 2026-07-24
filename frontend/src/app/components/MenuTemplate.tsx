@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import React from "react";
+import { useNavigate } from "react-router";
 import { RestaurantLogo } from "./RestaurantLogo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,6 +24,8 @@ export interface Dish {
   image: string;
   arModelUrl: string | null;
   usdzUrl: string | null;
+  /** Link to the full AR viewer (WebXR / Scene Viewer / Quick Look / image-tracking) for this dish, or null if it has no 3D model. */
+  arViewUrl: string | null;
   categoryId: number;
 }
 
@@ -44,97 +47,6 @@ export interface MenuTemplateProps {
   config: RestaurantConfig;
   categories: Category[];
   dishes: Dish[];
-}
-
-// ─── AR Modal ─────────────────────────────────────────────────────────────────
-function ARModal({ dish, onClose, dark, primaryColor }: {
-  dish: Dish; onClose: () => void; dark: boolean; primaryColor: string;
-}) {
-  const bg   = dark ? "#1c1c1c" : "#fff";
-  const text = dark ? "#fff"    : "#1a1a1a";
-  const sub  = dark ? "#aaa"    : "#666";
-  const dash = dark ? "#444"    : "#ddd";
-
-  return (
-    <div onClick={onClose} style={{
-      position: "fixed", inset: 0, zIndex: 2000,
-      background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)",
-      display: "flex", alignItems: "flex-end", justifyContent: "center",
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: bg, width: "100%", maxWidth: 560,
-        borderRadius: "20px 20px 0 0", padding: "1.5rem 1.5rem 2rem",
-        boxShadow: "0 -8px 40px rgba(0,0,0,0.25)",
-        maxHeight: "88vh", overflowY: "auto",
-      }}>
-        {/* Handle bar */}
-        <div style={{ width: 36, height: 4, background: dash, borderRadius: 2, margin: "0 auto 1.2rem" }} />
-
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-          <div style={{ flex: 1, paddingRight: "1rem" }}>
-            <h2 style={{ margin: "0 0 0.4rem", fontSize: "1.25rem", fontWeight: 700, color: text, fontFamily: "'Poppins',sans-serif" }}>
-              {dish.name}
-            </h2>
-            <p style={{ margin: 0, fontSize: "0.875rem", color: sub, lineHeight: 1.6 }}>{dish.description}</p>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: sub }}>✕</button>
-        </div>
-
-        {/* AR model or placeholder */}
-        {dish.arModelUrl ? (
-          <div style={{ borderRadius: 14, overflow: "hidden", background: dark ? "#111" : "#f5f5f5", marginBottom: "1.2rem", height: 280 }}>
-            {/* @ts-ignore — model-viewer is a custom element registered via CDN script in index.html */}
-            <model-viewer
-              src={dish.arModelUrl}
-              ios-src={dish.usdzUrl ?? undefined}
-              alt={dish.name}
-              ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto"
-              camera-controls auto-rotate shadow-intensity="1"
-              style={{ width: "100%", height: "100%", background: "transparent" }}
-            >
-              {/* @ts-ignore */}
-              <button slot="ar-button" style={{
-                position: "absolute", bottom: "1rem", left: "50%", transform: "translateX(-50%)",
-                background: primaryColor, color: "#000", border: "none", borderRadius: 10,
-                padding: "0.7rem 2rem", fontWeight: 700, fontSize: "0.95rem", cursor: "pointer",
-              }}>
-                📱 View On Your Table
-              </button>
-            </model-viewer>
-          </div>
-        ) : (
-          <div style={{
-            borderRadius: 14, background: dark ? "#111" : "#f5f5f5",
-            padding: "2.5rem", textAlign: "center", marginBottom: "1.2rem",
-            border: `2px dashed ${dash}`,
-          }}>
-            <p style={{ margin: 0, fontSize: "2rem" }}>🚧</p>
-            <p style={{ margin: "0.5rem 0 0", color: sub, fontSize: "0.9rem" }}>AR model coming soon</p>
-          </div>
-        )}
-
-        {/* Price + close */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "1.3rem", fontWeight: 700, color: "#e8472a", fontFamily: "'Poppins',sans-serif" }}>
-              Rs. {dish.price.toLocaleString()}
-            </span>
-            {dish.startingPrice && (
-              <span style={{ background: "#e8472a", color: "#fff", fontSize: "0.7rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: 20 }}>
-                Starting Price
-              </span>
-            )}
-          </div>
-          <button onClick={onClose} style={{
-            background: primaryColor, color: "#000", border: "none",
-            borderRadius: 8, padding: "0.55rem 1.4rem",
-            fontWeight: 700, fontSize: "0.9rem", cursor: "pointer",
-          }}>Close</button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─── Dish Card ────────────────────────────────────────────────────────────────
@@ -256,14 +168,21 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuTemplate({ config, categories, dishes }: MenuTemplateProps) {
+  const navigate = useNavigate();
   const [dark, setDark]                   = useState(false);
   const [activeCategory, setActiveCategory] = useState<number>(categories[0]?.id ?? 0);
   const [search, setSearch]               = useState("");
-  const [selectedDish, setSelectedDish]   = useState<Dish | null>(null);
   const [scrolled, setScrolled]           = useState(false);
   const [sidebarOpen, setSidebarOpen]     = useState(false);
 
   const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
+  // Launches the full AR viewer (WebXR / Scene Viewer / Quick Look /
+  // image-tracking fallback) for a dish, in place of the old in-page AR
+  // modal preview.
+  const handleShowAR = (dish: Dish) => {
+    if (dish.arViewUrl) navigate(dish.arViewUrl);
+  };
 
   // Update active category when categories load
   useEffect(() => {
@@ -475,7 +394,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
               </h2>
               <div className="dish-grid">
                 {catDishes.map(dish => (
-                  <DishCard key={dish.id} dish={dish} onShowAR={setSelectedDish} dark={dark} primaryColor={primaryColor} />
+                  <DishCard key={dish.id} dish={dish} onShowAR={handleShowAR} dark={dark} primaryColor={primaryColor} />
                 ))}
               </div>
             </div>
@@ -498,11 +417,6 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
         AR Menu powered by{" "}
         <a href="https://dinenics.com" style={{ color: primaryColor, textDecoration: "none", fontWeight: 700 }}>Dinenics.com</a>
       </footer>
-
-      {/* ── AR Modal ── */}
-      {selectedDish && (
-        <ARModal dish={selectedDish} onClose={() => setSelectedDish(null)} dark={dark} primaryColor={primaryColor} />
-      )}
 
       {/* ── Global styles ── */}
       <style>{`
