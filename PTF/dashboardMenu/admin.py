@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
@@ -65,13 +66,96 @@ class RestaurantAdmin(admin.ModelAdmin):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ["name", "restaurant", "order", "is_active"]
-    list_filter  = ["restaurant"]
-    inlines      = [DishInline]
+    # Selecting the restaurant for a category is already a plain, unambiguous
+    # FK dropdown — nothing extra needed here beyond making it searchable so
+    # DishAdmin's autocomplete (below) can find categories by restaurant name.
+    list_display  = ["name", "restaurant", "order", "is_active"]
+    list_filter   = ["restaurant"]
+    search_fields = ["name", "restaurant__business_name"]
+    inlines       = [DishInline]
+
+
+class RestaurantScopedCategorySelect(forms.Select):
+    """
+    A plain <select>, except every <option> also carries
+    data-restaurant-id="<pk>" — read by restaurant_category_filter.js to
+    show/hide options as the "Restaurant" field above it changes, without
+    needing any AJAX call (the whole category list is small enough to embed
+    directly in the page this way).
+    """
+    def __init__(self, *args, category_restaurant_map=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.category_restaurant_map = category_restaurant_map or {}
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex=subindex, attrs=attrs)
+        restaurant_id = self.category_restaurant_map.get(str(value))
+        if restaurant_id is not None:
+            option["attrs"]["data-restaurant-id"] = restaurant_id
+        return option
+
+
+class DishAdminForm(forms.ModelForm):
+    """
+    Adds a "Restaurant" field that isn't on the Dish model at all — it exists
+    purely to scope the `category` dropdown client-side via restaurant_category_filter.js,
+    so staff managing many restaurants can't accidentally attach a dish to
+    another restaurant's category. When editing an existing dish, this is
+    pre-filled from dish.category.restaurant so the category list is already
+    correctly scoped on load.
+    """
+    restaurant = forms.ModelChoiceField(
+        queryset=Restaurant.objects.all().order_by("business_name"),
+        required=False,
+        help_text="Pick the restaurant first — the Category list below will filter to just that restaurant's categories.",
+    )
+
+    class Meta:
+        model = Dish
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Order categories by restaurant so the filtered-out state (before
+        # JS runs, or if JS is disabled) still groups sensibly, and label
+        # each option as "Restaurant — Category" so it's unambiguous even
+        # without the JS filtering.
+        self.fields["category"].queryset = (
+            Category.objects.select_related("restaurant").order_by("restaurant__business_name", "order", "name")
+        )
+        self.fields["category"].label_from_instance = lambda c: f"{c.restaurant.business_name} — {c.name}"
+
+        category_restaurant_map = {
+            str(c.pk): c.restaurant_id for c in self.fields["category"].queryset
+        }
+        self.fields["category"].widget = RestaurantScopedCategorySelect(
+            category_restaurant_map=category_restaurant_map
+        )
+        # Re-attach choices to the freshly-swapped widget — ModelChoiceField
+        # normally wires this up automatically when .queryset is assigned,
+        # but only for whichever widget instance existed at that moment.
+        self.fields["category"].widget.choices = self.fields["category"].choices
+
+        if self.instance and self.instance.pk and self.instance.category_id:
+            self.fields["restaurant"].initial = self.instance.category.restaurant_id
 
 
 @admin.register(Dish)
 class DishAdmin(admin.ModelAdmin):
-    list_display  = ["name", "category", "price", "starting_price", "is_active"]
+    form          = DishAdminForm
+    list_display  = ["name", "get_restaurant", "category", "price", "starting_price", "is_active"]
     list_filter   = ["category__restaurant", "category"]
-    search_fields = ["name"]
+    search_fields = ["name", "category__name", "category__restaurant__business_name"]
+
+    # Ships a small vanilla-JS file (no extra admin packages needed) that:
+    #  1. Reads a restaurant_id -> [category_id, ...] map embedded in the
+    #     page (rendered via a data attribute on the category <select>).
+    #  2. On page load and whenever "Restaurant" changes, hides/shows
+    #     <option> elements in the "Category" <select> to match.
+    class Media:
+        js = ("dashboardMenu/restaurant_category_filter.js",)
+
+    def get_restaurant(self, obj):
+        return obj.category.restaurant.business_name
+    get_restaurant.short_description = "Restaurant"
+    get_restaurant.admin_order_field = "category__restaurant__business_name"
