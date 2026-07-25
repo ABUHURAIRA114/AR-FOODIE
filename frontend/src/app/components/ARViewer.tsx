@@ -58,9 +58,9 @@ const API_URL = (import.meta as any).env.VITE_API_URL || "";
 const DEMO_MODEL = {
   name: "DEMO-Dinenics",
   description: "Sample AR model — scan the QR code to view it on your phone.",
-  glb_url: `${API_URL}/media/scenes/general/DEMO-Dinenics.glb`,
+  glb_url: `${API_URL}/media/restaurants/Dinenics/Demo/Demo-Dinenics/model/DEMO-Dinenics.glb`,
   usdz_url: null as string | null,
-  ar_url: `/ar-view/17ae7cff-aa6e-4dd5-81f8-776e554f1bec/`,
+  ar_url: `/ar-view/e07161d6-5a7d-4b22-a337-d666a5115991/`,
 };
 
 // ── Info panel content (shared between sidebar layout and drawer) ──
