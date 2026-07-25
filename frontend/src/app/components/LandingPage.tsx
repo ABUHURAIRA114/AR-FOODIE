@@ -794,10 +794,11 @@ function ProblemSection() {
 const plans = [
   {
     name: "Lite Menu",
-    price: "Rs 4,950",
+    price: "Rs 14,950",
     per: "/ Month",
+    setupFee: "Rs 15,000 one-time setup",
+    dishLimit: "Up to 17 Active AR Food Models",
     features: [
-      "Up to 5 Active AR Food Models Live On Your Menu",
       "1 Free Dish Refresh every month",
       "Standard WebAR Hosting",
       "Custom QR Codes + Shareable Links for Instagram",
@@ -806,12 +807,11 @@ const plans = [
       "Total Monthly Scan Count Dashboard",
     ],
     comingSoonFeatures: [
-      "QR Codes + MOdel Viewer for Web Embedding",
+      "QR Codes + Model Viewer for Web Embedding",
       "Pre-Formatted Instagram Bio Link",
-      "Analytics Dashboard with Scan Heatmaps",
     ],
     cta: "Contact Us",
-    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Lite Menu Plan* (Rs 14,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
+     whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Lite Menu Plan* (Rs 14,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
     popular: false,
   },
   {
@@ -837,9 +837,11 @@ const plans = [
     popular: true,
   },
   {
-    name: "Pro Menu",
-    price: "Rs 8,950",
+     name: "Pro Menu",
+    price: "Rs 24,950",
     per: "/ Month",
+    setupFee: "Rs 20,000 one-time setup",
+    dishLimit: "25 to 35+ Active AR Food Models",
     features: [
       "Everything in Standard, plus:",
       "3 Free Dish Refreshes every month",
@@ -847,18 +849,11 @@ const plans = [
       "Dedicated Account Manager",
     ],
     comingSoonFeatures: [
-      "QR Codes + Model Viewer for Web Embedding",
-      "Advanced Analytics & Scan Heatmaps",
-      "Dedicated Account Manager",
-      "White-Label QR Code Branding",
-      "Ready-to-Use Menu Design Templates (Via Canva)",
       "AR Social Media Video Clips",
-      "Monthly Performance Reports",
-
     ],
     cta: "Contact Us",
-    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Pro Menu Plan* (Rs 8,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
-    popular: true,
+    whatsappMsg: "Hi Dinenics! 👋 We're interested in the *Pro Menu Plan* (Rs 24,950/month) for our restaurant. We'd love to get started — could you share the next steps?",
+    popular: false,
   },
 ];
 
