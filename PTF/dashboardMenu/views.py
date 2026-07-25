@@ -38,6 +38,39 @@ def api_dish(request, pk):
     })
 
 
+def my_dishes(request):
+    """
+    List view for the frontend's staff/owner "Models" page (ModelsPage.tsx).
+    Direct replacement for the removed Scene-based api_dishes — same
+    ownership rules, just keyed off Dish -> Category -> Restaurant.owner
+    instead of Scene.owner.
+    """
+    if request.user.is_authenticated and request.user.is_staff:
+        dishes = Dish.objects.select_related('category__restaurant').order_by('-created_at')
+    elif request.user.is_authenticated:
+        dishes = Dish.objects.select_related('category__restaurant').filter(
+            category__restaurant__owner=request.user
+        ).order_by('-created_at')
+    else:
+        return JsonResponse({'dishes': []})
+
+    data = []
+    for d in dishes:
+        data.append({
+            'id':          str(d.id),
+            'name':        d.name,
+            'description': d.description,
+            'restaurant':  d.category.restaurant.business_name,
+            'category':    d.category.name,
+            'glb_url':     request.build_absolute_uri(d.glb_file.url) if d.glb_file else None,
+            'usdz_url':    request.build_absolute_uri(d.usdz_file.url) if d.usdz_file else None,
+            'ar_url':      f"/ar-view/{d.id}" if d.glb_file else None,
+            'owner':       d.category.restaurant.owner_id,
+        })
+
+    return JsonResponse({'dishes': data})
+
+
 def restaurant_list(request):
     """
     Public directory of all active restaurants, for a landing/listing page
