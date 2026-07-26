@@ -100,6 +100,17 @@ interface WebXRPlacementViewerProps {
   onFallbackToSceneViewer?: () => void;
   /** Uniform scale applied to the loaded model. Fixed for the whole session — defaults to 1 (real-world scale). */
   modelScale?: number;
+  /**
+   * Opt-in only. Enables the in-session flashlight/torch toggle, which works
+   * by opening a SECOND getUserMedia camera stream alongside the WebXR
+   * session purely to reach the torch constraint. On hardware where the
+   * camera driver only supports one client at a time, doing this doesn't
+   * just glitch — it can crash the entire browser tab, because the failure
+   * happens below the JS layer (in the OS/driver's camera pipeline), where
+   * no try/catch can intervene. Defaults to false. Only enable this if
+   * you've verified it's stable on the specific devices you're targeting.
+   */
+  experimentalInSessionFlashlight?: boolean;
 }
 
 type SessionPhase =
@@ -151,6 +162,7 @@ export function WebXRPlacementViewer({
   onExit,
   onFallbackToSceneViewer,
   modelScale = 1,
+  experimentalInSessionFlashlight = false,
 }: WebXRPlacementViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -858,11 +870,17 @@ export function WebXRPlacementViewer({
           </button>
         )}
 
-        {/* Flashlight toggle — only shown once the session is actually
-            active and scanning/placing, and hidden automatically if a real
-            attempt to use it fails (see toggleFlashlight's comment on why
-            this is best-effort rather than guaranteed to work). */}
-        {(phase === "active-searching" || phase === "active-placed") && flashlightSupported && (
+        {/* Flashlight toggle — off by default (see experimentalInSessionFlashlight
+            on the component's props). Opening a second camera stream
+            alongside the WebXR session to reach the torch constraint can
+            crash the entire tab on hardware where the camera driver only
+            supports one client at a time — that failure happens below the
+            JS layer, so no amount of try/catch here can prevent it. Only
+            rendered when the caller has explicitly opted in after verifying
+            it's stable on their target devices. */}
+        {experimentalInSessionFlashlight &&
+          (phase === "active-searching" || phase === "active-placed") &&
+          flashlightSupported && (
           <button
             onClick={toggleFlashlight}
             aria-label={flashlightOn ? "Turn off flashlight" : "Turn on flashlight"}
@@ -923,6 +941,10 @@ export function WebXRPlacementViewer({
             <span style={{ fontWeight: 700, color: T.accent }}>Move your phone slowly</span>
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
               Green highlights show surfaces found so far — tap one to place.
+            </span>
+            <span style={{ color: T.muted, fontSize: "0.72rem", opacity: 0.75, marginTop: "0.15rem" }}>
+              Too dark? Turn on your phone's flashlight from the control
+              center / notification shade, then come back.
             </span>
           </div>
         )}
