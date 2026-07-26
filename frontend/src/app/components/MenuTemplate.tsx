@@ -244,7 +244,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
   const pageBg = dark ? "#111" : "#f5f5f5";
 
   return (
-    <div style={{ background: pageBg, minHeight: "100vh", fontFamily: "'Poppins',sans-serif" }}>
+    <div style={{ background: pageBg, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Poppins',sans-serif" }}>
 
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" />
 
@@ -260,7 +260,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
           {/* Restaurant logo — small circular badge, top-left corner */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={40} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={50} />
 
           {/* Search */}
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
@@ -284,15 +284,6 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
               {dark ? "☀️" : "🌙"}
             </button>
 
-            {/* Login — [BACKEND] onClick → navigate to /login or open auth modal */}
-            <button
-              style={{ background: "#fff", color: "#1a2e1a", border: `2px solid ${primaryColor}`, borderRadius: 8, padding: "0.5rem 1.1rem", fontWeight: 600, fontSize: "0.95rem", cursor: "pointer", fontFamily: "'Poppins',sans-serif", display: "flex", alignItems: "center", gap: "0.35rem", transition: "background 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s", whiteSpace: "nowrap" }}
-              onMouseEnter={e => { e.currentTarget.style.background = primaryColor; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 4px 12px ${primaryColor}66`; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              👤 LOGIN
-            </button>
-
             {/* Dinenics branding */}
             <div style={{ borderLeft: "1px solid #ddd", paddingLeft: "0.6rem", flexShrink: 0 }}>
               <img src="/logos/dinenics.png" alt="Dinenics" height={40} style={{ objectFit: "contain", display: "block", maxWidth: 190 }} />
@@ -311,7 +302,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
           </button>
 
           {/* Restaurant logo — small circular badge, top-left corner */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={32} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={38} />
 
           {/* Spacer pushes the search toggle to the right, same as before */}
           <div style={{ flex: 1 }} />
@@ -349,11 +340,6 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
               <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem", color: dark ? "#888" : "#999", fontFamily: "'Poppins',sans-serif" }}>AR Menu powered by Dinenics</p>
             </div>
 
-            {/* Login — [BACKEND] onClick → navigate to /login */}
-            <button style={{ background: primaryColor, color: "#000", border: "none", borderRadius: 10, padding: "0.75rem", fontWeight: 700, fontSize: "1rem", cursor: "pointer", fontFamily: "'Poppins',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
-              👤 Login
-            </button>
-
             {/* Dark mode toggle */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", background: dark ? "#2a2a2a" : "#f5f5f5", borderRadius: 10 }}>
               <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: "0.9rem", fontWeight: 600, color: dark ? "#fff" : "#333" }}>
@@ -380,7 +366,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
       />
 
       {/* ── Dish Sections ── */}
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "1.5rem 1.25rem 4rem" }}>
+      <main style={{ flex: 1, maxWidth: 1100, margin: "0 auto", padding: "1.5rem 1.25rem 4rem", width: "100%" }}>
         {groupedDishes.length > 0 ? (
           groupedDishes.map(({ category, dishes: catDishes }) => (
             <div
