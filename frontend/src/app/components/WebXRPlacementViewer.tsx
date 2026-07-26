@@ -156,6 +156,12 @@ export function WebXRPlacementViewer({
   const overlayRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<XRSession | null>(null);
   const flashlightTrackRef = useRef<MediaStreamTrack | null>(null);
+  // Prevents a second tap from firing a second, overlapping
+  // acquire/apply-constraints sequence while the first is still in flight —
+  // on hardware where the flashlight stream and the AR camera contend for
+  // the same physical camera, two overlapping attempts is what was causing
+  // the "second tap does nothing / crashes" behavior.
+  const flashlightBusyRef = useRef(false);
   const [phase, setPhase] = useState<SessionPhase>("checking-support");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [domOverlaySupported, setDomOverlaySupported] = useState(true);
@@ -171,14 +177,25 @@ export function WebXRPlacementViewer({
   // — there's no standard WebXR API to control torch/flashlight during an
   // active session. This works around that by opening a *separate*
   // getUserMedia camera stream purely to reach the MediaStreamTrack torch
-  // constraint (the same physical camera hardware, so toggling it here
-  // affects the actual LED even while WebXR's own session is what's
-  // actually driving what you see). This is a best-effort workaround, not a
-  // guaranteed-supported path — some browsers/devices will reject it
-  // outright, which is exactly what flashlightSupported tracks.
+  // constraint on the same physical camera hardware. This is a best-effort
+  // workaround, not a guaranteed-supported path.
   //
-  // Two things previously made this unreliable in practice, both addressed
-  // here:
+  // IMPORTANT CAVEAT: on some devices/drivers, the camera hardware only
+  // tolerates ONE active client at a time. ARCore already holds the camera
+  // for the WebXR session, so opening a second getUserMedia stream on top
+  // of it can cause the OS to forcibly kill one of the two streams a moment
+  // later — which looks like "the flashlight turns off by itself and the
+  // camera briefly glitches." This is a hardware/OS-level conflict, not
+  // something fixable purely in JS. What IS fixable, and handled below, is
+  // making sure that when it happens we (a) notice immediately via the
+  // track's own 'ended'/'mute' events instead of silently going stale, (b)
+  // never let a second tap fire an overlapping attempt while one is still
+  // in flight (that overlap was the likely cause of the "second tap does
+  // nothing / crashes" symptom), and (c) give up cleanly and hide the
+  // button after a repeated failure rather than let the user keep hitting a
+  // broken control.
+  //
+  // Two more things that previously made this unreliable, both addressed:
   //  - Without an *exact* facingMode match, some devices silently handed
   //    back the FRONT camera (which has no torch), so capabilities.torch
   //    came back false even on phones that do have one. We now request an
@@ -187,8 +204,6 @@ export function WebXRPlacementViewer({
   //  - The torch constraint is applied inconsistently across browsers: some
   //    only accept it wrapped in `advanced`, others want it set directly.
   //    We now try both forms instead of assuming one.
-  // We also re-acquire the track if it's ever found to have ended (e.g. the
-  // OS reclaimed the camera), instead of reusing a dead track forever.
 
   async function acquireFlashlightTrack(): Promise<MediaStreamTrack | null> {
     let stream: MediaStream;
@@ -203,7 +218,23 @@ export function WebXRPlacementViewer({
         video: { facingMode: "environment" },
       });
     }
-    return stream.getVideoTracks()[0] ?? null;
+    const track = stream.getVideoTracks()[0] ?? null;
+    if (track) {
+      // If the OS/driver kills this track out from under us (typically
+      // because the AR session's camera claim won the contention), notice
+      // right away instead of leaving flashlightOn/flashlightTrackRef out
+      // of sync with reality — that stale state is what made the button
+      // look unresponsive or throw on the next tap.
+      const handleHardwareStop = () => {
+        if (flashlightTrackRef.current === track) {
+          flashlightTrackRef.current = null;
+        }
+        setFlashlightOn(false);
+      };
+      track.addEventListener("ended", handleHardwareStop);
+      track.addEventListener("mute", handleHardwareStop);
+    }
+    return track;
   }
 
   async function applyTorch(track: MediaStreamTrack, on: boolean) {
@@ -217,6 +248,12 @@ export function WebXRPlacementViewer({
   }
 
   async function toggleFlashlight() {
+    // Re-entrancy guard: ignore a tap if a previous acquire/apply sequence
+    // hasn't resolved yet, instead of letting two overlapping attempts race
+    // against the same camera hardware.
+    if (flashlightBusyRef.current) return;
+    flashlightBusyRef.current = true;
+
     try {
       let track = flashlightTrackRef.current;
       if (!track || track.readyState !== "live") {
@@ -236,11 +273,23 @@ export function WebXRPlacementViewer({
 
       const next = !flashlightOn;
       await applyTorch(track, next);
+      // The apply call can succeed even on a track that the hardware is
+      // about to reclaim a moment later — that's the "opens for a while
+      // then closes" case, and it's handled separately by the 'ended'/'mute'
+      // listener in acquireFlashlightTrack, not here.
       setFlashlightOn(next);
     } catch {
+      // A failed attempt here (after we've already successfully toggled it
+      // at least once before) most likely means the camera is contended and
+      // this device can't reliably run both streams at once. Give up for
+      // the rest of the session rather than leaving a control the user can
+      // keep tapping into the same failure.
       flashlightTrackRef.current?.stop();
       flashlightTrackRef.current = null;
+      setFlashlightOn(false);
       setFlashlightSupported(false);
+    } finally {
+      flashlightBusyRef.current = false;
     }
   }
 
@@ -249,6 +298,7 @@ export function WebXRPlacementViewer({
       flashlightTrackRef.current.stop();
       flashlightTrackRef.current = null;
     }
+    flashlightBusyRef.current = false;
     setFlashlightOn(false);
   }
 
@@ -633,6 +683,22 @@ export function WebXRPlacementViewer({
     renderer.setAnimationLoop((_time, frame: any) => {
       if (!frame) return;
 
+      // Everything below reads live XR frame data, which can throw
+      // transiently if the underlying camera pipeline hiccups (for example,
+      // from contention with the separate flashlight getUserMedia stream —
+      // see toggleFlashlight above). Without this try/catch, one bad frame
+      // would throw out of setAnimationLoop's callback and permanently stop
+      // the loop, which is what "the camera stops working" looks like from
+      // the outside. Catching here just skips the bad frame and tries
+      // again next frame instead.
+      try {
+        runFrame(frame);
+      } catch (err) {
+        console.warn("[WebXRPlacementViewer] Skipped a frame after an error:", err);
+      }
+    });
+
+    function runFrame(frame: any) {
       const viewerPose = frame.getViewerPose(localSpace);
 
       syncPlaneMeshes(frame, localSpace);
@@ -711,7 +777,7 @@ export function WebXRPlacementViewer({
       }
 
       renderer.render(scene, camera);
-    });
+    }
   }
 
   function endSession() {
