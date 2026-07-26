@@ -22,46 +22,52 @@ import { T } from "./tokens.mts";
  *      user can see what's been scanned so far (plane-detection is additive
  *      to hit-test — it doesn't speed up ARCore's own scan, but it surfaces
  *      progress sooner, since planes often appear before a clean hit-test
- *      result does). Also run a hit test from the 'viewer' reference space
- *      and move a reticle to the first result's pose, rendered in the
- *      'local' reference space. Both the plane visualization and the
- *      reticle stay visible even after the model is placed, so the user can
- *      always see where a re-tap would move it to.
+ *      result does). Also run a hit test from the 'viewer' reference space.
+ *      Before a model is placed, the reticle tracks that live hit test (in
+ *      the 'local' reference space) so the user can see where a tap would
+ *      place the model. Once a model IS placed, the reticle stops following
+ *      the camera's aim and instead pins itself directly under the placed
+ *      model at all times (see step 3/5) — the live hit test keeps running
+ *      internally so a re-tap still works, it just no longer drives the
+ *      reticle's visual position while something is already placed.
  *   3. On a WebXR 'select' event (the user's tap), place the model at the
- *      reticle's current pose and stop moving it — this is the explicit
- *      "tap to place" step model-viewer doesn't offer.
+ *      current live hit-test result and stop moving it — this is the
+ *      explicit "tap to place" step model-viewer doesn't offer.
  *   4. After placement, the user can tap again to re-place, matching the
  *      common "tap elsewhere to move it" pattern.
  *   5. After placement, the user can also press-and-drag on the surface to
  *      slide the model around continuously, using a transient-input hit
  *      test tied to the active touch point (see onSelectStart/onSelectEnd
- *      and the drag block in the animation loop below).
- *   6. The model's size is fixed once placed — no pinch-to-scale or other
- *      resize gesture. Its size is set once at load time (bounding-box
- *      normalisation × modelScale, see the GLB-load block below) and never
- *      changes afterward.
+ *      and the drag block in the animation loop below). The reticle follows
+ *      along underneath it since it's pinned to the model's position.
+ *   6. Model scale is fixed: it's computed once when the GLB finishes
+ *      loading (normalized to a real-world target size, then multiplied by
+ *      the `modelScale` prop) and never changes afterward — there is no
+ *      in-session pinch/resize gesture, intentionally, so the model always
+ *      reads at a single, predictable size.
  *   7. Surface detection has two layers: the native WebXR hit test (now
  *      requested against both planes AND point-cloud features, so it can
  *      succeed before ARCore/ARKit has committed to a full plane polygon),
  *      plus a manual Three.js raycast fallback against the plane meshes
  *      we've already built from plane-detection, used only on frames where
  *      the native hit test comes back empty. This meaningfully reduces
- *      "reticle disappears for a moment" gaps.
+ *      "reticle disappears for a moment" gaps before anything is placed.
  *   8. An optional flashlight/torch toggle is available once the session is
  *      active. WebXR itself has no standard API for this — it works around
  *      that by opening a separate getUserMedia stream purely to reach the
  *      MediaStreamTrack torch constraint on the same physical camera
- *      hardware. Best-effort: hidden automatically if a real attempt fails.
+ *      hardware. The stream explicitly requests the rear-facing camera
+ *      (falling back gracefully if the browser doesn't support an exact
+ *      match), re-acquires the track if it ever ends, and tries both known
+ *      forms of the torch constraint before giving up — see
+ *      acquireFlashlightTrack/applyTorch below. Best-effort: hidden
+ *      automatically if a real attempt fails.
  *   9. A "Use Scene Viewer instead" button is available throughout the
  *      active session (not just on error/unsupported states) so the user
  *      can voluntarily switch away from WebXR even when it's working fine.
- *   10. The reticle marker behaves differently before vs after placement:
- *      beforehand it tracks the live hit-test result (the usual "here's
- *      where it'll go" preview); once a model is placed, it switches to a
- *      FIXED marker glued to the model's own position on the surface,
- *      rather than continuing to roam wherever the camera currently looks
- *      — re-tapping elsewhere still re-places using a fresh hit-test result
- *      regardless of what the marker is currently showing.
+ *      It's centered on screen and, when pressed, ends the current WebXR
+ *      session and calls straight into onFallbackToSceneViewer — no
+ *      intermediate confirmation step.
  *
  * Note on speed: the actual scan/tracking speed is governed by ARCore's own
  * SLAM pipeline, which this component only reads from each frame — there's
@@ -92,7 +98,7 @@ interface WebXRPlacementViewerProps {
   onExit?: () => void;
   /** Called when the user wants to bail out of WebXR to model-viewer's Scene Viewer / Quick Look path instead. */
   onFallbackToSceneViewer?: () => void;
-  /** Uniform scale applied to the loaded model. Defaults to 1 (real-world scale). */
+  /** Uniform scale applied to the loaded model. Fixed for the whole session — defaults to 1 (real-world scale). */
   modelScale?: number;
 }
 
@@ -170,13 +176,55 @@ export function WebXRPlacementViewer({
   // actually driving what you see). This is a best-effort workaround, not a
   // guaranteed-supported path — some browsers/devices will reject it
   // outright, which is exactly what flashlightSupported tracks.
+  //
+  // Two things previously made this unreliable in practice, both addressed
+  // here:
+  //  - Without an *exact* facingMode match, some devices silently handed
+  //    back the FRONT camera (which has no torch), so capabilities.torch
+  //    came back false even on phones that do have one. We now request an
+  //    exact rear-facing camera first and only fall back to a loose match
+  //    if the exact request itself fails.
+  //  - The torch constraint is applied inconsistently across browsers: some
+  //    only accept it wrapped in `advanced`, others want it set directly.
+  //    We now try both forms instead of assuming one.
+  // We also re-acquire the track if it's ever found to have ended (e.g. the
+  // OS reclaimed the camera), instead of reusing a dead track forever.
+
+  async function acquireFlashlightTrack(): Promise<MediaStreamTrack | null> {
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } },
+      });
+    } catch {
+      // Browser/device doesn't support an exact match for facingMode —
+      // fall back to a best-effort request for a rear-ish camera.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+    }
+    return stream.getVideoTracks()[0] ?? null;
+  }
+
+  async function applyTorch(track: MediaStreamTrack, on: boolean) {
+    try {
+      await (track as any).applyConstraints({ advanced: [{ torch: on }] });
+    } catch {
+      // Some implementations don't accept the `advanced` wrapper — retry
+      // with the constraint set directly before treating this as a failure.
+      await (track as any).applyConstraints({ torch: on });
+    }
+  }
+
   async function toggleFlashlight() {
     try {
-      if (!flashlightTrackRef.current) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-        });
-        const track = stream.getVideoTracks()[0];
+      let track = flashlightTrackRef.current;
+      if (!track || track.readyState !== "live") {
+        track = await acquireFlashlightTrack();
+        if (!track) {
+          setFlashlightSupported(false);
+          return;
+        }
         const capabilities: any = track.getCapabilities?.() ?? {};
         if (!capabilities.torch) {
           track.stop();
@@ -187,7 +235,7 @@ export function WebXRPlacementViewer({
       }
 
       const next = !flashlightOn;
-      await (flashlightTrackRef.current as any).applyConstraints({ advanced: [{ torch: next }] });
+      await applyTorch(track, next);
       setFlashlightOn(next);
     } catch {
       flashlightTrackRef.current?.stop();
@@ -298,9 +346,11 @@ export function WebXRPlacementViewer({
     scene.add(dirLight);
 
     // Reticle: a rounded-square "frame" outline + small axis indicator,
-    // hidden until a hit is found. Stays visible even after the model has
-    // been placed, so the user can always see where the next tap would move
-    // it to (previously it hid itself once placed).
+    // hidden until a hit is found. Before placement it tracks the live hit
+    // test; once a model is placed it stops tracking the camera's aim and
+    // instead pins itself directly under the placed model (updated below,
+    // in the animation loop) so it always shows exactly where the model
+    // currently sits.
     const reticleGeometry = createRoundedSquareRingGeometry(0.09, 0.07, 0.03).rotateX(-Math.PI / 2);
     const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
@@ -311,10 +361,10 @@ export function WebXRPlacementViewer({
     // Detected-plane visualization: one semi-transparent mesh per XRPlane,
     // rebuilt whenever its polygon changes. This is what actually shows the
     // user "the environment as it's scanned" — distinct from the reticle,
-    // which only shows where the model *would* go. Planes typically appear
-    // faster than a clean hit-test result does, so this also gives earlier
-    // visual feedback that scanning is working. These stay visible even
-    // after the model is placed (previously they hid themselves then).
+    // which only shows where the model *would* go (or currently is). Planes
+    // typically appear faster than a clean hit-test result does, so this
+    // also gives earlier visual feedback that scanning is working. These
+    // stay visible even after the model is placed.
     const planeMeshes = new Map<XRPlane, THREE.Mesh>();
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x4ade80,
@@ -375,31 +425,13 @@ export function WebXRPlacementViewer({
     let modelLoaded = false;
     let pendingModel: THREE.Object3D | null = null;
 
-    // The latest raw hit-test result each frame (native hit test, or the
-    // raycast fallback below), independent of what the reticle visually
-    // shows. Used by onSelect to know where a tap should place/re-place the
-    // model. Kept separate from the reticle's own transform because once a
-    // model is placed, the reticle switches to showing a fixed marker under
-    // the model itself (see the animation loop) rather than continuing to
-    // track wherever the camera currently points — but re-placement via a
-    // fresh tap still needs to know the live hit location regardless of
-    // what's currently drawn.
-    const liveHitMatrix = new THREE.Matrix4();
-    let liveHitValid = false;
-
-    // Orientation the fixed under-model reticle marker uses — captured from
-    // the surface's own hit-test normal at the moment of (re)placement, so
-    // the marker lies flat against whatever surface the model is actually
-    // sitting on rather than some arbitrary default orientation.
-    const placedFootprintQuaternion = new THREE.Quaternion();
-
     // --- Drag-to-move state ---
     // draggingInputSource tracks which XRInputSource (touch point) is
     // currently being held down over the placed model. dragOccurred is set
     // true the moment we actually move the model during that press, so the
     // subsequent 'select' event (which always fires on release, drag or not)
     // knows to skip its own re-placement logic instead of jumping the model
-    // to the viewer-center reticle right after a drag.
+    // to the current hit-test result right after a drag.
     let draggingInputSource: XRInputSource | null = null;
     let dragOccurred = false;
 
@@ -434,6 +466,9 @@ export function WebXRPlacementViewer({
       box.getSize(size);
       const largestDimension = Math.max(size.x, size.y, size.z);
 
+      // Scale is computed once here and never touched again for the rest of
+      // the session — there's no pinch/resize gesture, so the model always
+      // renders at this same fixed size.
       if (largestDimension > 0 && isFinite(largestDimension)) {
         const targetSize = 0.25;
         const normalizingScale = targetSize / largestDimension;
@@ -442,7 +477,6 @@ export function WebXRPlacementViewer({
         pivot.scale.setScalar(modelScale);
         console.warn("[WebXRPlacementViewer] Degenerate bounding box — using raw modelScale.");
       }
-      baseModelScale = pivot.scale.x;
 
       // Re-center: model base sits at y=0 (the surface), horizontally centered
       box.setFromObject(pivot);
@@ -459,7 +493,7 @@ export function WebXRPlacementViewer({
       console.log(
         "[WebXRPlacementViewer] Model ready.",
         `Size: ${size.x.toFixed(3)}×${size.y.toFixed(3)}×${size.z.toFixed(3)} m`,
-        `Scale: ${pivot.scale.x.toFixed(4)}`
+        `Fixed scale: ${pivot.scale.x.toFixed(4)}`
       );
     } catch (err: any) {
       dracoLoader.dispose();
@@ -486,14 +520,15 @@ export function WebXRPlacementViewer({
     // entityTypes: hit-test against point-cloud features as well as full
     // planes, not just planes alone. ARCore/ARKit often have usable depth
     // points on a surface before they've built up enough data to commit to
-    // a full plane polygon — testing against points too means the reticle
-    // (and therefore placement) can succeed earlier, before a plane exists.
+    // a full plane polygon — testing against points too means the live hit
+    // test (and therefore placement) can succeed earlier, before a plane
+    // exists.
     const hitTestSource = await (session as any).requestHitTestSource({
       space: viewerSpace,
       entityTypes: ["plane", "point"],
     });
     // Transient-input hit test source: gives a per-touch-point hit test each
-    // frame, independent of the viewer-center reticle above. This is what
+    // frame, independent of the viewer-center hit test above. This is what
     // powers press-and-drag — the model follows whichever finger is down,
     // not just the center of the screen.
     const transientHitTestSource = await (session as any).requestHitTestSourceForTransientInput({
@@ -502,17 +537,25 @@ export function WebXRPlacementViewer({
 
     setPhase("active-searching");
 
+    // Reused every frame for the native + fallback hit test, so placement
+    // (onSelect) always has the latest live result to work with — even
+    // though, once a model exists, the *visual* reticle no longer shows
+    // this and instead pins itself under the placed model (see the
+    // animation loop below).
+    const hitMatrix = new THREE.Matrix4();
+    let hitValid = false;
+
     function onSelect() {
       // A drag just ended on this same press — the model has already been
       // moved continuously to follow the finger, so skip the normal
-      // tap-to-(re)place logic below to avoid an extra jump to the
-      // viewer-center reticle.
+      // tap-to-(re)place logic below to avoid an extra jump to the current
+      // hit-test result right after a drag.
       if (dragOccurred) {
         dragOccurred = false;
         return;
       }
 
-      if (!liveHitValid) return;
+      if (!hitValid) return;
       if (!modelLoaded || !pendingModel) {
         console.warn("[WebXRPlacementViewer] Tap before model ready — should not happen now.");
         return;
@@ -523,15 +566,12 @@ export function WebXRPlacementViewer({
         scene.add(placedModel);
       }
 
-      // Only copy position from the hit pose — not its rotation. The pivot
-      // group already has a corrective inverse quaternion baked in to
-      // cancel the root node's arbitrary rotation. Overwriting it with the
-      // hit's orientation (which encodes the floor normal, not the model's
-      // up-axis) would undo that correction and tilt the model again.
-      placedModel.position.setFromMatrixPosition(liveHitMatrix);
-      // The fixed reticle marker DOES want that surface orientation though
-      // — it's meant to lie flat against the surface, unlike the model.
-      placedFootprintQuaternion.setFromRotationMatrix(liveHitMatrix);
+      // Only copy position from the live hit-test result — not orientation.
+      // The pivot group already has a corrective inverse quaternion baked in
+      // to cancel the root node's arbitrary rotation. Overwriting it with
+      // the hit pose's orientation (which encodes the floor normal, not the
+      // model's up-axis) would undo that correction and tilt the model again.
+      placedModel.position.setFromMatrixPosition(hitMatrix);
       setPhase("active-placed");
 
       // eslint-disable-next-line no-console
@@ -561,9 +601,6 @@ export function WebXRPlacementViewer({
       session.removeEventListener("select", onSelect);
       session.removeEventListener("selectstart", onSelectStart);
       session.removeEventListener("selectend", onSelectEnd);
-      // No touch listeners are attached to the overlay (pinch-to-scale was
-      // removed — model size is fixed once placed), so there's nothing to
-      // remove here.
       stopFlashlight();
       hitTestSource?.cancel?.();
       transientHitTestSource?.cancel?.();
@@ -597,19 +634,18 @@ export function WebXRPlacementViewer({
       if (!frame) return;
 
       const viewerPose = frame.getViewerPose(localSpace);
-      liveHitValid = false;
 
       syncPlaneMeshes(frame, localSpace);
-      // Planes stay visible even once a model has been placed, so the user
-      // can always see the scanned surface.
 
+      // --- Live hit test (always computed, drives placement) ---
+      hitValid = false;
       if (hitTestSource && viewerPose) {
         const hitTestResults = frame.getHitTestResults(hitTestSource);
         if (hitTestResults.length > 0) {
           const pose = hitTestResults[0].getPose(localSpace);
           if (pose) {
-            liveHitMatrix.fromArray(pose.transform.matrix);
-            liveHitValid = true;
+            hitMatrix.fromArray(pose.transform.matrix);
+            hitValid = true;
           }
         }
       }
@@ -617,12 +653,12 @@ export function WebXRPlacementViewer({
       // Fallback: the native hit test can occasionally miss for a frame or
       // two even though a plane has already been detected right where the
       // user is looking (e.g. near a plane's edge, or just ARCore's own
-      // internal update cadence). Rather than leave the live hit unset and
+      // internal update cadence). Rather than treat the hit as missing and
       // waiting, raycast against the plane meshes we already have from
-      // plane-detection instead — this measurably reduces "no reticle" gaps
-      // using data that's already on hand, without waiting on the next
-      // native hit-test result.
-      if (!liveHitValid && viewerPose && planeMeshes.size > 0) {
+      // plane-detection instead — this measurably reduces gaps, using data
+      // that's already on hand, without waiting on the next native
+      // hit-test result.
+      if (!hitValid && viewerPose && planeMeshes.size > 0) {
         fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
         fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
         fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
@@ -632,30 +668,10 @@ export function WebXRPlacementViewer({
         if (intersections.length > 0) {
           const hit = intersections[0];
           const planeMesh = hit.object as THREE.Mesh;
-          const fallbackQuaternion = new THREE.Quaternion().setFromRotationMatrix(planeMesh.matrix);
-          liveHitMatrix.compose(hit.point, fallbackQuaternion, new THREE.Vector3(1, 1, 1));
-          liveHitValid = true;
+          const tempQuat = new THREE.Quaternion().setFromRotationMatrix(planeMesh.matrix);
+          hitMatrix.compose(hit.point, tempQuat, new THREE.Vector3(1, 1, 1));
+          hitValid = true;
         }
-      }
-
-      // Reticle display: before placement it tracks the live hit-test
-      // result, same as the "where would this go" preview always has. Once
-      // a model is placed, it switches to a FIXED marker glued to the
-      // model's own position — it no longer follows wherever the camera
-      // happens to be looking, since that was confusing to look at moving
-      // independently of the already-placed model. A fresh tap still
-      // re-places using the live hit-test result above regardless of what
-      // the reticle is currently showing.
-      if (placedModel) {
-        reticle.position.copy(placedModel.position);
-        reticle.quaternion.copy(placedFootprintQuaternion);
-        reticle.updateMatrix();
-        reticle.visible = true;
-      } else if (liveHitValid) {
-        reticle.matrix.copy(liveHitMatrix);
-        reticle.visible = true;
-      } else {
-        reticle.visible = false;
       }
 
       // Drag-to-move: while a press is active over the placed model, follow
@@ -674,6 +690,24 @@ export function WebXRPlacementViewer({
             }
           }
         }
+      }
+
+      // --- Reticle: tracks the live hit test before placement; once a
+      // model is placed, it's pinned directly under that model instead
+      // (so it stays fixed to the model rather than following where the
+      // camera happens to be pointed). ---
+      if (placedModel) {
+        reticle.matrix.makeTranslation(
+          placedModel.position.x,
+          placedModel.position.y,
+          placedModel.position.z
+        );
+        reticle.visible = true;
+      } else if (hitValid) {
+        reticle.matrix.copy(hitMatrix);
+        reticle.visible = true;
+      } else {
+        reticle.visible = false;
       }
 
       renderer.render(scene, camera);
@@ -705,12 +739,10 @@ export function WebXRPlacementViewer({
 
       {/* This element becomes the WebXR DOM overlay once the session starts.
           It's also rendered normally (non-immersive) before/after the
-          session, so the same JSX covers both states. pointerEvents is
-          "none" so single-finger taps/drags pass straight through to
-          WebXR's own 'select' handling untouched — the individual buttons
-          inside (exit, flashlight, "Use Scene Viewer instead") each set
-          their own pointerEvents: "auto", which is enough to make just
-          those specific elements clickable regardless of this. */}
+          session, so the same JSX covers both states. The container itself
+          doesn't need to capture touches anymore (there's no in-session
+          pinch/resize gesture), so it's pointer-events: none by default —
+          individual buttons opt back in to "auto" so they stay clickable. */}
       <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
         <div
           style={{
@@ -791,9 +823,9 @@ export function WebXRPlacementViewer({
             even while WebXR is working fine — not just as an error
             fallback (see the phase === "unsupported"/"denied"/"error"
             buttons further down, which cover the case where WebXR *isn't*
-            working). Placed under the exit button rather than the main
-            coaching text so it doesn't compete with the primary
-            tap-to-place instructions. */}
+            working). Centered on screen, and pressing it ends the current
+            session and calls straight into onFallbackToSceneViewer with no
+            intermediate step. */}
         {(phase === "active-searching" || phase === "active-placed") && onFallbackToSceneViewer && (
           <button
             onClick={() => {
@@ -803,7 +835,8 @@ export function WebXRPlacementViewer({
             style={{
               position: "absolute",
               top: "4.2rem",
-              right: "1.2rem",
+              left: "50%",
+              transform: "translateX(-50%)",
               background: "rgba(13,26,31,0.75)",
               color: T.muted,
               border: `1px solid ${T.border}`,
