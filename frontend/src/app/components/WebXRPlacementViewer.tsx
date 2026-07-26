@@ -36,11 +36,10 @@ import { T } from "./tokens.mts";
  *      slide the model around continuously, using a transient-input hit
  *      test tied to the active touch point (see onSelectStart/onSelectEnd
  *      and the drag block in the animation loop below).
-  *   6. Once placed, a two-finger pinch gesture scales the model up/down,
- *      read directly from touch events on the dom-overlay element (see the
- *      onOverlayTouch* handlers below). This only works while dom-overlay is
- *      active, since that's what lets our own DOM element receive real
- *      touch events during the immersive session.
+ *   6. The model's size is fixed once placed — no pinch-to-scale or other
+ *      resize gesture. Its size is set once at load time (bounding-box
+ *      normalisation × modelScale, see the GLB-load block below) and never
+ *      changes afterward.
  *   7. Surface detection has two layers: the native WebXR hit test (now
  *      requested against both planes AND point-cloud features, so it can
  *      succeed before ARCore/ARKit has committed to a full plane polygon),
@@ -56,6 +55,13 @@ import { T } from "./tokens.mts";
  *   9. A "Use Scene Viewer instead" button is available throughout the
  *      active session (not just on error/unsupported states) so the user
  *      can voluntarily switch away from WebXR even when it's working fine.
+ *   10. The reticle marker behaves differently before vs after placement:
+ *      beforehand it tracks the live hit-test result (the usual "here's
+ *      where it'll go" preview); once a model is placed, it switches to a
+ *      FIXED marker glued to the model's own position on the surface,
+ *      rather than continuing to roam wherever the camera currently looks
+ *      — re-tapping elsewhere still re-places using a fresh hit-test result
+ *      regardless of what the marker is currently showing.
  *
  * Note on speed: the actual scan/tracking speed is governed by ARCore's own
  * SLAM pipeline, which this component only reads from each frame — there's
@@ -253,8 +259,7 @@ export function WebXRPlacementViewer({
       sessionRef.current = session;
 
       // dom-overlay was optional — if it didn't activate, domOverlayState will
-      // be absent and our coaching UI (and pinch-to-scale, which depends on
-      // real DOM touch events) won't be available during the session.
+      // be absent and our coaching UI won't be available during the session.
       setDomOverlaySupported(Boolean((session as any).domOverlayState));
 
       await runArSession(session);
@@ -369,7 +374,24 @@ export function WebXRPlacementViewer({
     let placedModel: THREE.Object3D | null = null;
     let modelLoaded = false;
     let pendingModel: THREE.Object3D | null = null;
-    let baseModelScale = modelScale; // the "1.0 pinch" scale, before any pinch multiplier
+
+    // The latest raw hit-test result each frame (native hit test, or the
+    // raycast fallback below), independent of what the reticle visually
+    // shows. Used by onSelect to know where a tap should place/re-place the
+    // model. Kept separate from the reticle's own transform because once a
+    // model is placed, the reticle switches to showing a fixed marker under
+    // the model itself (see the animation loop) rather than continuing to
+    // track wherever the camera currently points — but re-placement via a
+    // fresh tap still needs to know the live hit location regardless of
+    // what's currently drawn.
+    const liveHitMatrix = new THREE.Matrix4();
+    let liveHitValid = false;
+
+    // Orientation the fixed under-model reticle marker uses — captured from
+    // the surface's own hit-test normal at the moment of (re)placement, so
+    // the marker lies flat against whatever surface the model is actually
+    // sitting on rather than some arbitrary default orientation.
+    const placedFootprintQuaternion = new THREE.Quaternion();
 
     // --- Drag-to-move state ---
     // draggingInputSource tracks which XRInputSource (touch point) is
@@ -380,58 +402,6 @@ export function WebXRPlacementViewer({
     // to the viewer-center reticle right after a drag.
     let draggingInputSource: XRInputSource | null = null;
     let dragOccurred = false;
-
-    // --- Pinch-to-scale state ---
-    // Read directly from DOM touch events on the dom-overlay element rather
-    // than XR input sources, since a 2-finger pinch is naturally expressed
-    // as ordinary browser TouchEvents (dom-overlay is specifically designed
-    // to receive these during an immersive session). We only take over
-    // (preventDefault) once a second finger actually lands, so single-finger
-    // taps/drags keep working exactly as before, routed through the normal
-    // WebXR 'select'/transient-hit-test flow untouched.
-    let pinchStartDistance: number | null = null;
-    let pinchStartScale: THREE.Vector3 | null = null;
-
-    function touchDistance(touches: TouchList): number {
-      const dx = touches[0].clientX - touches[1].clientX;
-      const dy = touches[0].clientY - touches[1].clientY;
-      return Math.hypot(dx, dy);
-    }
-
-    function onOverlayTouchStart(e: TouchEvent) {
-      if (e.touches.length === 2 && placedModel) {
-        e.preventDefault();
-        pinchStartDistance = touchDistance(e.touches);
-        pinchStartScale = placedModel.scale.clone();
-      }
-    }
-
-    function onOverlayTouchMove(e: TouchEvent) {
-      if (pinchStartDistance !== null && pinchStartScale && e.touches.length === 2 && placedModel) {
-        e.preventDefault();
-        const distance = touchDistance(e.touches);
-        const ratio = distance / pinchStartDistance;
-        // Clamp so a pinch can't shrink the dish to nothing or blow it up to
-        // an absurd size relative to where it started.
-        const clamped = THREE.MathUtils.clamp(ratio, 0.2, 5);
-        placedModel.scale.copy(pinchStartScale).multiplyScalar(clamped);
-      }
-    }
-
-    function onOverlayTouchEnd(e: TouchEvent) {
-      if (e.touches.length < 2) {
-        pinchStartDistance = null;
-        pinchStartScale = null;
-      }
-    }
-
-    const overlayEl = overlayRef.current;
-    if (overlayEl) {
-      overlayEl.addEventListener("touchstart", onOverlayTouchStart, { passive: false });
-      overlayEl.addEventListener("touchmove", onOverlayTouchMove, { passive: false });
-      overlayEl.addEventListener("touchend", onOverlayTouchEnd, { passive: false });
-      overlayEl.addEventListener("touchcancel", onOverlayTouchEnd, { passive: false });
-    }
 
     // Load the GLB BEFORE starting the XR session so:
     // 1. We know the model is ready before the user can tap
@@ -542,13 +512,7 @@ export function WebXRPlacementViewer({
         return;
       }
 
-      // A pinch was just in progress on this same gesture — don't also
-      // reinterpret its release as a placement tap.
-      if (pinchStartDistance !== null) {
-        return;
-      }
-
-      if (!reticle.visible) return;
+      if (!liveHitValid) return;
       if (!modelLoaded || !pendingModel) {
         console.warn("[WebXRPlacementViewer] Tap before model ready — should not happen now.");
         return;
@@ -559,12 +523,15 @@ export function WebXRPlacementViewer({
         scene.add(placedModel);
       }
 
-      // Only copy position from the reticle pose — not quaternion.
-      // The pivot group already has a corrective inverse quaternion baked in
-      // to cancel the root node's arbitrary rotation. Overwriting it with
-      // the reticle's orientation (which encodes the floor normal, not the
-      // model's up-axis) would undo that correction and tilt the model again.
-      placedModel.position.setFromMatrixPosition(reticle.matrix);
+      // Only copy position from the hit pose — not its rotation. The pivot
+      // group already has a corrective inverse quaternion baked in to
+      // cancel the root node's arbitrary rotation. Overwriting it with the
+      // hit's orientation (which encodes the floor normal, not the model's
+      // up-axis) would undo that correction and tilt the model again.
+      placedModel.position.setFromMatrixPosition(liveHitMatrix);
+      // The fixed reticle marker DOES want that surface orientation though
+      // — it's meant to lie flat against the surface, unlike the model.
+      placedFootprintQuaternion.setFromRotationMatrix(liveHitMatrix);
       setPhase("active-placed");
 
       // eslint-disable-next-line no-console
@@ -594,12 +561,9 @@ export function WebXRPlacementViewer({
       session.removeEventListener("select", onSelect);
       session.removeEventListener("selectstart", onSelectStart);
       session.removeEventListener("selectend", onSelectEnd);
-      if (overlayEl) {
-        overlayEl.removeEventListener("touchstart", onOverlayTouchStart);
-        overlayEl.removeEventListener("touchmove", onOverlayTouchMove);
-        overlayEl.removeEventListener("touchend", onOverlayTouchEnd);
-        overlayEl.removeEventListener("touchcancel", onOverlayTouchEnd);
-      }
+      // No touch listeners are attached to the overlay (pinch-to-scale was
+      // removed — model size is fixed once placed), so there's nothing to
+      // remove here.
       stopFlashlight();
       hitTestSource?.cancel?.();
       transientHitTestSource?.cancel?.();
@@ -633,20 +597,19 @@ export function WebXRPlacementViewer({
       if (!frame) return;
 
       const viewerPose = frame.getViewerPose(localSpace);
-      reticle.visible = false;
+      liveHitValid = false;
 
       syncPlaneMeshes(frame, localSpace);
-      // Planes and the reticle intentionally stay visible even once a model
-      // has been placed, so the user can always see the scanned surface and
-      // where a re-tap would move the model to.
+      // Planes stay visible even once a model has been placed, so the user
+      // can always see the scanned surface.
 
       if (hitTestSource && viewerPose) {
         const hitTestResults = frame.getHitTestResults(hitTestSource);
         if (hitTestResults.length > 0) {
           const pose = hitTestResults[0].getPose(localSpace);
           if (pose) {
-            reticle.matrix.fromArray(pose.transform.matrix);
-            reticle.visible = true;
+            liveHitMatrix.fromArray(pose.transform.matrix);
+            liveHitValid = true;
           }
         }
       }
@@ -654,12 +617,12 @@ export function WebXRPlacementViewer({
       // Fallback: the native hit test can occasionally miss for a frame or
       // two even though a plane has already been detected right where the
       // user is looking (e.g. near a plane's edge, or just ARCore's own
-      // internal update cadence). Rather than leave the reticle hidden and
+      // internal update cadence). Rather than leave the live hit unset and
       // waiting, raycast against the plane meshes we already have from
       // plane-detection instead — this measurably reduces "no reticle" gaps
       // using data that's already on hand, without waiting on the next
       // native hit-test result.
-      if (!reticle.visible && viewerPose && planeMeshes.size > 0) {
+      if (!liveHitValid && viewerPose && planeMeshes.size > 0) {
         fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
         fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
         fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
@@ -669,11 +632,30 @@ export function WebXRPlacementViewer({
         if (intersections.length > 0) {
           const hit = intersections[0];
           const planeMesh = hit.object as THREE.Mesh;
-          reticle.position.copy(hit.point);
-          reticle.quaternion.setFromRotationMatrix(planeMesh.matrix);
-          reticle.updateMatrix();
-          reticle.visible = true;
+          const fallbackQuaternion = new THREE.Quaternion().setFromRotationMatrix(planeMesh.matrix);
+          liveHitMatrix.compose(hit.point, fallbackQuaternion, new THREE.Vector3(1, 1, 1));
+          liveHitValid = true;
         }
+      }
+
+      // Reticle display: before placement it tracks the live hit-test
+      // result, same as the "where would this go" preview always has. Once
+      // a model is placed, it switches to a FIXED marker glued to the
+      // model's own position — it no longer follows wherever the camera
+      // happens to be looking, since that was confusing to look at moving
+      // independently of the already-placed model. A fresh tap still
+      // re-places using the live hit-test result above regardless of what
+      // the reticle is currently showing.
+      if (placedModel) {
+        reticle.position.copy(placedModel.position);
+        reticle.quaternion.copy(placedFootprintQuaternion);
+        reticle.updateMatrix();
+        reticle.visible = true;
+      } else if (liveHitValid) {
+        reticle.matrix.copy(liveHitMatrix);
+        reticle.visible = true;
+      } else {
+        reticle.visible = false;
       }
 
       // Drag-to-move: while a press is active over the placed model, follow
@@ -724,11 +706,12 @@ export function WebXRPlacementViewer({
       {/* This element becomes the WebXR DOM overlay once the session starts.
           It's also rendered normally (non-immersive) before/after the
           session, so the same JSX covers both states. pointerEvents is
-          "auto" so it can receive real two-finger touch events for
-          pinch-to-scale — single-finger taps/drags are left alone (we only
-          call preventDefault once a second finger lands), so they still
-          pass through to WebXR's own 'select' handling untouched. */}
-      <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "auto", touchAction: "none" }}>
+          "none" so single-finger taps/drags pass straight through to
+          WebXR's own 'select' handling untouched — the individual buttons
+          inside (exit, flashlight, "Use Scene Viewer instead") each set
+          their own pointerEvents: "auto", which is enough to make just
+          those specific elements clickable regardless of this. */}
+      <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
         <div
           style={{
             position: "absolute",
@@ -848,7 +831,7 @@ export function WebXRPlacementViewer({
         {phase === "active-placed" && (
           <div style={{ ...coachStyle, top: "auto", bottom: "16%", pointerEvents: "none" }}>
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
-              Tap elsewhere to move it, drag to slide it, or pinch with two fingers to resize it.
+              Tap elsewhere to move it, or drag to slide it.
             </span>
           </div>
         )}
