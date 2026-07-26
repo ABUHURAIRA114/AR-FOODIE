@@ -268,6 +268,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
 
   const { primaryColor, headerBg, logo, name: restaurantName } = config;
   const pageBg = dark ? "#111" : "#f5f5f5";
+  const navBg = dark ? "#1a1a1a" : headerBg;
 
   return (
     <div style={{ background: pageBg, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Poppins',sans-serif" }}>
@@ -276,7 +277,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
 
       {/* ── Navbar ── */}
       <header style={{
-        background: headerBg, position: "sticky", top: 0, zIndex: 100,
+        background: navBg, position: "sticky", top: 0, zIndex: 100,
         height: 68, display: "flex", alignItems: "center",
         boxShadow: scrolled ? "0 4px 20px rgba(0,0,0,0.15)" : "none",
         transition: "box-shadow 0.3s",
@@ -288,22 +289,22 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
           <RestaurantLogo logo={logo} name={restaurantName} size={50} />
 
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
-            <span style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "#999", fontSize: "0.9rem", pointerEvents: "none" }}>🔍</span>
+            <span style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: dark ? "#777" : "#999", fontSize: "0.9rem", pointerEvents: "none" }}>🔍</span>
             <input
               type="text" placeholder={`Find in ${restaurantName}`}
               value={search} onChange={e => setSearch(e.target.value)}
-              style={{ width: "100%", padding: "0.6rem 1rem 0.6rem 2.4rem", borderRadius: 8, border: "1px solid #ddd", background: "#fff", color: "#1a1a1a", fontSize: "0.95rem", outline: "none", fontFamily: "'Poppins',sans-serif", boxSizing: "border-box", transition: "box-shadow 0.2s" }}
+              style={{ width: "100%", padding: "0.6rem 1rem 0.6rem 2.4rem", borderRadius: 8, border: dark ? "1px solid #333" : "1px solid #ddd", background: dark ? "#1a1a1a" : "#fff", color: dark ? "#f0f0f0" : "#1a1a1a", fontSize: "0.95rem", outline: "none", fontFamily: "'Poppins',sans-serif", boxSizing: "border-box", transition: "box-shadow 0.2s" }}
               onFocus={e => (e.target.style.boxShadow = `0 0 0 2px ${primaryColor}`)}
               onBlur={e => (e.target.style.boxShadow = "none")}
             />
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexShrink: 0 }}>
-            <button onClick={() => setDark(d => !d)} style={{ background: "rgba(0,0,0,0.06)", border: "1px solid #ddd", borderRadius: 8, padding: "0.5rem 0.65rem", cursor: "pointer", fontSize: "1rem", transition: "background 0.2s" }}>
+            <button onClick={() => setDark(d => !d)} style={{ background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", border: dark ? "1px solid #333" : "1px solid #ddd", borderRadius: 8, padding: "0.5rem 0.65rem", cursor: "pointer", fontSize: "1rem", transition: "background 0.2s" }}>
               {dark ? "☀️" : "🌙"}
             </button>
 
-            <div style={{ borderLeft: "1px solid #ddd", paddingLeft: "0.6rem", flexShrink: 0 }}>
+            <div style={{ borderLeft: dark ? "1px solid #333" : "1px solid #ddd", paddingLeft: "0.6rem", flexShrink: 0 }}>
               <img src="/logos/dinenics.png" alt="Dinenics" height={40} style={{ objectFit: "contain", display: "block", maxWidth: 190 }} />
             </div>
           </div>
@@ -315,19 +316,22 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
             {[0,1,2].map(i => <span key={i} style={{ display: "block", width: 22, height: 2, background: "#333", borderRadius: 2 }} />)}
           </button>
 
-          {/* Restaurant logo — small circular badge, top-left corner */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={38} />
-
-          {/* Spacer pushes the search toggle to the right, same as before */}
+          {/* Left spacer balances the search button on the right, so the logo lands dead-center */}
           <div style={{ flex: 1 }} />
 
-          <button
-            onClick={() => {
-              const el = document.getElementById("mobile-search-bar");
-              if (el) el.style.display = el.style.display === "none" ? "block" : "none";
-            }}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem", padding: "0.3rem", flexShrink: 0 }}
-          >🔍</button>
+          {/* Restaurant logo — centered in narrow view */}
+          <RestaurantLogo logo={logo} name={restaurantName} size={38} />
+
+          {/* Right spacer balances the hamburger on the left, search button right-aligned within it */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={() => {
+                const el = document.getElementById("mobile-search-bar");
+                if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+              }}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem", padding: "0.3rem", flexShrink: 0 }}
+            >🔍</button>
+          </div>
         </div>
 
         {/* Mobile search dropdown */}
