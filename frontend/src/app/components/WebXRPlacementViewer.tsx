@@ -943,8 +943,8 @@ export function WebXRPlacementViewer({
               Green highlights show surfaces found so far — tap one to place.
             </span>
             <span style={{ color: T.muted, fontSize: "0.72rem", opacity: 0.75, marginTop: "0.15rem" }}>
-              Too dark? Turn on your phone's flashlight from the control
-              center / notification shade, then come back.
+              Too dark to scan? Your phone's flashlight is locked while AR is
+              active — try moving to a brighter spot instead.
             </span>
           </div>
         )}
@@ -1003,22 +1003,28 @@ export function WebXRPlacementViewer({
 
       {phase === "idle" && (
         <div style={overlayStyle}>
-          <button
-            onClick={startSession}
-            style={{
-              background: T.primary,
-              color: "#fff",
-              border: "none",
-              borderRadius: 12,
-              padding: "0.85rem 2.4rem",
-              fontSize: "1rem",
-              fontWeight: 700,
-              cursor: "pointer",
-              boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
-            }}
-          >
-            Enter AR
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+            <button
+              onClick={startSession}
+              style={{
+                background: T.primary,
+                color: "#fff",
+                border: "none",
+                borderRadius: 12,
+                padding: "0.85rem 2.4rem",
+                fontSize: "1rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
+              }}
+            >
+              Enter AR
+            </button>
+            <span style={{ color: T.muted, fontSize: "0.75rem", textAlign: "center", padding: "0 2rem", opacity: 0.8 }}>
+              Scanning in a dark room? Turn on your phone's flashlight now —
+              it locks off once AR starts and can't be toggled mid-session.
+            </span>
+          </div>
         </div>
       )}
 
