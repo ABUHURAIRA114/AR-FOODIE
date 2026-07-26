@@ -36,11 +36,26 @@ import { T } from "./tokens.mts";
  *      slide the model around continuously, using a transient-input hit
  *      test tied to the active touch point (see onSelectStart/onSelectEnd
  *      and the drag block in the animation loop below).
- *   6. Once placed, a two-finger pinch gesture scales the model up/down,
+  *   6. Once placed, a two-finger pinch gesture scales the model up/down,
  *      read directly from touch events on the dom-overlay element (see the
  *      onOverlayTouch* handlers below). This only works while dom-overlay is
  *      active, since that's what lets our own DOM element receive real
  *      touch events during the immersive session.
+ *   7. Surface detection has two layers: the native WebXR hit test (now
+ *      requested against both planes AND point-cloud features, so it can
+ *      succeed before ARCore/ARKit has committed to a full plane polygon),
+ *      plus a manual Three.js raycast fallback against the plane meshes
+ *      we've already built from plane-detection, used only on frames where
+ *      the native hit test comes back empty. This meaningfully reduces
+ *      "reticle disappears for a moment" gaps.
+ *   8. An optional flashlight/torch toggle is available once the session is
+ *      active. WebXR itself has no standard API for this — it works around
+ *      that by opening a separate getUserMedia stream purely to reach the
+ *      MediaStreamTrack torch constraint on the same physical camera
+ *      hardware. Best-effort: hidden automatically if a real attempt fails.
+ *   9. A "Use Scene Viewer instead" button is available throughout the
+ *      active session (not just on error/unsupported states) so the user
+ *      can voluntarily switch away from WebXR even when it's working fine.
  *
  * Note on speed: the actual scan/tracking speed is governed by ARCore's own
  * SLAM pipeline, which this component only reads from each frame — there's
@@ -128,9 +143,60 @@ export function WebXRPlacementViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<XRSession | null>(null);
+  const flashlightTrackRef = useRef<MediaStreamTrack | null>(null);
   const [phase, setPhase] = useState<SessionPhase>("checking-support");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [domOverlaySupported, setDomOverlaySupported] = useState(true);
+  const [flashlightOn, setFlashlightOn] = useState(false);
+  // Optimistically true until a real attempt fails — there's no reliable way
+  // to feature-detect torch support up front (getSupportedConstraints()
+  // often omits "torch" even on devices where applyConstraints({torch})
+  // does work), so the button is shown by default and only hidden after an
+  // actual failed attempt.
+  const [flashlightSupported, setFlashlightSupported] = useState(true);
+
+  // WebXR's immersive-ar sessions manage their own internal camera pipeline
+  // — there's no standard WebXR API to control torch/flashlight during an
+  // active session. This works around that by opening a *separate*
+  // getUserMedia camera stream purely to reach the MediaStreamTrack torch
+  // constraint (the same physical camera hardware, so toggling it here
+  // affects the actual LED even while WebXR's own session is what's
+  // actually driving what you see). This is a best-effort workaround, not a
+  // guaranteed-supported path — some browsers/devices will reject it
+  // outright, which is exactly what flashlightSupported tracks.
+  async function toggleFlashlight() {
+    try {
+      if (!flashlightTrackRef.current) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        const track = stream.getVideoTracks()[0];
+        const capabilities: any = track.getCapabilities?.() ?? {};
+        if (!capabilities.torch) {
+          track.stop();
+          setFlashlightSupported(false);
+          return;
+        }
+        flashlightTrackRef.current = track;
+      }
+
+      const next = !flashlightOn;
+      await (flashlightTrackRef.current as any).applyConstraints({ advanced: [{ torch: next }] });
+      setFlashlightOn(next);
+    } catch {
+      flashlightTrackRef.current?.stop();
+      flashlightTrackRef.current = null;
+      setFlashlightSupported(false);
+    }
+  }
+
+  function stopFlashlight() {
+    if (flashlightTrackRef.current) {
+      flashlightTrackRef.current.stop();
+      flashlightTrackRef.current = null;
+    }
+    setFlashlightOn(false);
+  }
 
   // --- Feature-detect WebXR + hit-test support, then go straight into AR ---
   // No intermediate "Start AR" tap here: the click that navigated the user
@@ -447,7 +513,15 @@ export function WebXRPlacementViewer({
 
     const viewerSpace = await session.requestReferenceSpace("viewer");
     const localSpace = await session.requestReferenceSpace("local");
-    const hitTestSource = await (session as any).requestHitTestSource({ space: viewerSpace });
+    // entityTypes: hit-test against point-cloud features as well as full
+    // planes, not just planes alone. ARCore/ARKit often have usable depth
+    // points on a surface before they've built up enough data to commit to
+    // a full plane polygon — testing against points too means the reticle
+    // (and therefore placement) can succeed earlier, before a plane exists.
+    const hitTestSource = await (session as any).requestHitTestSource({
+      space: viewerSpace,
+      entityTypes: ["plane", "point"],
+    });
     // Transient-input hit test source: gives a per-touch-point hit test each
     // frame, independent of the viewer-center reticle above. This is what
     // powers press-and-drag — the model follows whichever finger is down,
@@ -526,6 +600,7 @@ export function WebXRPlacementViewer({
         overlayEl.removeEventListener("touchend", onOverlayTouchEnd);
         overlayEl.removeEventListener("touchcancel", onOverlayTouchEnd);
       }
+      stopFlashlight();
       hitTestSource?.cancel?.();
       transientHitTestSource?.cancel?.();
       renderer.setAnimationLoop(null);
@@ -547,6 +622,13 @@ export function WebXRPlacementViewer({
     }
     session.addEventListener("end", onSessionEnd);
 
+    // Reused every frame for the raycast fallback below, to avoid
+    // allocating new THREE objects 60 times a second.
+    const fallbackRaycaster = new THREE.Raycaster();
+    const fallbackViewerMatrix = new THREE.Matrix4();
+    const fallbackOrigin = new THREE.Vector3();
+    const fallbackDirection = new THREE.Vector3();
+
     renderer.setAnimationLoop((_time, frame: any) => {
       if (!frame) return;
 
@@ -566,6 +648,31 @@ export function WebXRPlacementViewer({
             reticle.matrix.fromArray(pose.transform.matrix);
             reticle.visible = true;
           }
+        }
+      }
+
+      // Fallback: the native hit test can occasionally miss for a frame or
+      // two even though a plane has already been detected right where the
+      // user is looking (e.g. near a plane's edge, or just ARCore's own
+      // internal update cadence). Rather than leave the reticle hidden and
+      // waiting, raycast against the plane meshes we already have from
+      // plane-detection instead — this measurably reduces "no reticle" gaps
+      // using data that's already on hand, without waiting on the next
+      // native hit-test result.
+      if (!reticle.visible && viewerPose && planeMeshes.size > 0) {
+        fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
+        fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
+        fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
+        fallbackRaycaster.set(fallbackOrigin, fallbackDirection);
+
+        const intersections = fallbackRaycaster.intersectObjects(Array.from(planeMeshes.values()), false);
+        if (intersections.length > 0) {
+          const hit = intersections[0];
+          const planeMesh = hit.object as THREE.Mesh;
+          reticle.position.copy(hit.point);
+          reticle.quaternion.setFromRotationMatrix(planeMesh.matrix);
+          reticle.updateMatrix();
+          reticle.visible = true;
         }
       }
 
@@ -598,6 +705,7 @@ export function WebXRPlacementViewer({
   useEffect(() => {
     return () => {
       sessionRef.current?.end();
+      flashlightTrackRef.current?.stop();
     };
   }, []);
 
@@ -666,6 +774,65 @@ export function WebXRPlacementViewer({
             aria-label="Exit AR"
           >
             ✕
+          </button>
+        )}
+
+        {/* Flashlight toggle — only shown once the session is actually
+            active and scanning/placing, and hidden automatically if a real
+            attempt to use it fails (see toggleFlashlight's comment on why
+            this is best-effort rather than guaranteed to work). */}
+        {(phase === "active-searching" || phase === "active-placed") && flashlightSupported && (
+          <button
+            onClick={toggleFlashlight}
+            aria-label={flashlightOn ? "Turn off flashlight" : "Turn on flashlight"}
+            style={{
+              position: "absolute",
+              top: "1.2rem",
+              left: "1.2rem",
+              background: flashlightOn ? T.accent : "rgba(13,26,31,0.75)",
+              color: flashlightOn ? "#1a1410" : T.text,
+              border: `1px solid ${T.border}`,
+              borderRadius: 999,
+              width: 36,
+              height: 36,
+              fontSize: "1.05rem",
+              cursor: "pointer",
+              pointerEvents: "auto",
+            }}
+          >
+            🔦
+          </button>
+        )}
+
+        {/* Lets the user voluntarily switch to Scene Viewer / Quick Look
+            even while WebXR is working fine — not just as an error
+            fallback (see the phase === "unsupported"/"denied"/"error"
+            buttons further down, which cover the case where WebXR *isn't*
+            working). Placed under the exit button rather than the main
+            coaching text so it doesn't compete with the primary
+            tap-to-place instructions. */}
+        {(phase === "active-searching" || phase === "active-placed") && onFallbackToSceneViewer && (
+          <button
+            onClick={() => {
+              endSession();
+              onFallbackToSceneViewer();
+            }}
+            style={{
+              position: "absolute",
+              top: "4.2rem",
+              right: "1.2rem",
+              background: "rgba(13,26,31,0.75)",
+              color: T.muted,
+              border: `1px solid ${T.border}`,
+              borderRadius: 999,
+              padding: "0.4rem 0.8rem",
+              fontSize: "0.72rem",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Use Scene Viewer instead
           </button>
         )}
 

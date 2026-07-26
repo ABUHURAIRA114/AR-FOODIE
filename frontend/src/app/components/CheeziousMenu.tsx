@@ -313,7 +313,7 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         {/* Mobile */}
         <div className="nav-mobile" style={{ width: "100%", padding: "0 1rem", display: "none", alignItems: "center", gap: "0.6rem" }}>
           <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.3rem", display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
-            {[0,1,2].map(i => <span key={i} style={{ display: "block", width: 22, height: 2, background: "#333", borderRadius: 2 }} />)}
+            {[0,1,2].map(i => <span key={i} style={{ display: "block", width: 22, height: 2, background: dark ? "#eee" : "#333", borderRadius: 2 }} />)}
           </button>
 
           {/* Left spacer balances the search button on the right, so the logo lands dead-center */}
@@ -335,11 +335,11 @@ export default function CheziousARMenu({ config = DEFAULT_CONFIG, categories = D
         </div>
 
         {/* Mobile search dropdown */}
-        <div id="mobile-search-bar" style={{ display: "none", position: "absolute", top: 68, left: 0, right: 0, background: headerBg, padding: "0.75rem 1rem", borderTop: "1px solid #eee", zIndex: 99 }}>
+        <div id="mobile-search-bar" style={{ display: "none", position: "absolute", top: 68, left: 0, right: 0, background: navBg, padding: "0.75rem 1rem", borderTop: dark ? "1px solid #333" : "1px solid #eee", zIndex: 99 }}>
           <input
             type="text" placeholder={`Find in ${restaurantName}`}
             value={search} onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "0.6rem 1rem", borderRadius: 8, border: "1px solid #ddd", background: "#fff", color: "#1a1a1a", fontSize: "0.95rem", outline: "none", fontFamily: "'Poppins',sans-serif", boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "0.6rem 1rem", borderRadius: 8, border: dark ? "1px solid #333" : "1px solid #ddd", background: dark ? "#1a1a1a" : "#fff", color: dark ? "#f0f0f0" : "#1a1a1a", fontSize: "0.95rem", outline: "none", fontFamily: "'Poppins',sans-serif", boxSizing: "border-box" }}
           />
         </div>
       </header>
