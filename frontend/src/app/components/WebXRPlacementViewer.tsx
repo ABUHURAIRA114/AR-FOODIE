@@ -144,11 +144,6 @@ function createRoundedSquareRingGeometry(outerHalf: number, innerHalf: number, c
   return new THREE.ShapeGeometry(shape);
 }
 
-// Pixels of two-finger horizontal drag needed for one full 360° rotation.
-// Smaller = more sensitive/faster. Tuned so a comfortable thumb-to-thumb
-// swipe across roughly a third of the screen spins the model about 180°.
-const ROTATE_PIXELS_PER_FULL_TURN = 400;
-
 export function WebXRPlacementViewer({
   glbUrl,
   name,
@@ -360,43 +355,53 @@ export function WebXRPlacementViewer({
     // that touch point.
     const modelHitRaycaster = new THREE.Raycaster();
 
-    // --- Two-finger horizontal rotate state ---
-    // Read directly from DOM touch events on the dom-overlay element rather
-    // than XR input sources, since a 2-finger horizontal drag is naturally
-    // expressed as ordinary browser TouchEvents (dom-overlay is specifically
-    // designed to receive these during an immersive session). We only take
+    // --- Two-finger twist-to-rotate state ---
+    // Scene Viewer (and AR Quick Look) rotate the model based on the TWIST
+    // angle between your two fingers — as the line connecting them turns,
+    // the model turns with it — not on how far the pair drags sideways.
+    // That's what this reads: the angle of the vector from touch 0 to touch
+    // 1, tracked frame to frame, with the model's Y-rotation following the
+    // same angular delta 1:1 (a half-turn of your fingers around each other
+    // is a half-turn of the model). Read directly from DOM touch events on
+    // the dom-overlay element, since dom-overlay is specifically designed
+    // to receive real TouchEvents during an immersive session. We only take
     // over (preventDefault) once a second finger actually lands and a model
     // exists, so single-finger taps/drags keep working exactly as before,
     // routed through the normal WebXR 'select'/transient-hit-test flow
     // untouched.
-    let rotateStartAvgX: number | null = null;
+    let rotateStartAngle: number | null = null;
     let rotateStartRotationY = 0;
 
-    function averageTouchX(touches: TouchList): number {
-      return (touches[0].clientX + touches[1].clientX) / 2;
+    function twoTouchAngle(touches: TouchList): number {
+      return Math.atan2(
+        touches[1].clientY - touches[0].clientY,
+        touches[1].clientX - touches[0].clientX
+      );
     }
 
     function onOverlayTouchStart(e: TouchEvent) {
       if (e.touches.length === 2 && placedModel) {
         e.preventDefault();
-        rotateStartAvgX = averageTouchX(e.touches);
+        rotateStartAngle = twoTouchAngle(e.touches);
         rotateStartRotationY = placedModel.rotation.y;
       }
     }
 
     function onOverlayTouchMove(e: TouchEvent) {
-      if (rotateStartAvgX !== null && e.touches.length === 2 && placedModel) {
+      if (rotateStartAngle !== null && e.touches.length === 2 && placedModel) {
         e.preventDefault();
-        const avgX = averageTouchX(e.touches);
-        const deltaX = avgX - rotateStartAvgX;
-        const deltaRadians = (deltaX / ROTATE_PIXELS_PER_FULL_TURN) * Math.PI * 2;
-        placedModel.rotation.y = rotateStartRotationY + deltaRadians;
+        const angle = twoTouchAngle(e.touches);
+        // Screen Y grows downward, so a clockwise twist on screen is a
+        // negative angle delta in standard math convention — negate it so
+        // twisting fingers clockwise turns the model clockwise too.
+        const deltaAngle = -(angle - rotateStartAngle);
+        placedModel.rotation.y = rotateStartRotationY + deltaAngle;
       }
     }
 
     function onOverlayTouchEnd(e: TouchEvent) {
       if (e.touches.length < 2) {
-        rotateStartAvgX = null;
+        rotateStartAngle = null;
       }
     }
 
@@ -517,6 +522,26 @@ export function WebXRPlacementViewer({
     // animation loop below).
     const hitMatrix = new THREE.Matrix4();
     let hitValid = false;
+    // Remembers the Y height of the most recent successful hit, so we can
+    // fall back to an infinite virtual floor at that height on frames where
+    // both the native hit test AND the plane-mesh raycast fail — this fills
+    // in gaps *before* a plane's polygon has grown to cover where you're
+    // looking, without waiting for it to catch up. Reset to null whenever
+    // there hasn't been a real hit in a while (see HIT_GRACE_FRAMES below),
+    // so it can't go on suggesting a floor height that's no longer relevant.
+    let knownFloorY: number | null = null;
+    // Once we DO get a real hit, keep the reticle alive for a few more
+    // frames even if every method above misses — camera-tracking / hit-test
+    // results can flicker for a single frame here and there even while
+    // pointed at a perfectly good surface, and hiding+reshowing the reticle
+    // every time reads as "detection is slow." A short grace window trades
+    // a little raw accuracy (using a slightly stale position for a few
+    // frames) for a much steadier-feeling reticle. Kept short enough that
+    // moving the phone away from a surface still hides it quickly.
+    let missedHitFrames = 0;
+    const HIT_GRACE_FRAMES = 6; // ~0.1s at 60fps
+    const virtualFloorPlane = new THREE.Plane();
+    const virtualFloorHit = new THREE.Vector3();
 
     function onSelect() {
       // A drag just ended on this same press — the model has already been
@@ -530,7 +555,7 @@ export function WebXRPlacementViewer({
 
       // A two-finger rotate was just in progress on this same gesture —
       // don't also reinterpret its release as a placement tap.
-      if (rotateStartAvgX !== null) {
+      if (rotateStartAngle !== null) {
         return;
       }
 
@@ -643,27 +668,28 @@ export function WebXRPlacementViewer({
       syncPlaneMeshes(frame, localSpace);
 
       // --- Live hit test (always computed, drives placement) ---
-      hitValid = false;
+      let hitFoundThisFrame = false;
+
       if (hitTestSource && viewerPose) {
         const hitTestResults = frame.getHitTestResults(hitTestSource);
         if (hitTestResults.length > 0) {
           const pose = hitTestResults[0].getPose(localSpace);
           if (pose) {
             hitMatrix.fromArray(pose.transform.matrix);
-            hitValid = true;
+            hitFoundThisFrame = true;
           }
         }
       }
 
-      // Fallback: the native hit test can occasionally miss for a frame or
-      // two even though a plane has already been detected right where the
-      // user is looking (e.g. near a plane's edge, or just ARCore's own
-      // internal update cadence). Rather than treat the hit as missing and
-      // waiting, raycast against the plane meshes we already have from
+      // Fallback 1: the native hit test can occasionally miss for a frame
+      // or two even though a plane has already been detected right where
+      // the user is looking (e.g. near a plane's edge, or just ARCore's
+      // own internal update cadence). Rather than treat the hit as missing
+      // and waiting, raycast against the plane meshes we already have from
       // plane-detection instead — this measurably reduces gaps, using data
       // that's already on hand, without waiting on the next native
       // hit-test result.
-      if (!hitValid && viewerPose && planeMeshes.size > 0) {
+      if (!hitFoundThisFrame && viewerPose && planeMeshes.size > 0) {
         fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
         fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
         fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
@@ -675,8 +701,52 @@ export function WebXRPlacementViewer({
           const planeMesh = hit.object as THREE.Mesh;
           const tempQuat = new THREE.Quaternion().setFromRotationMatrix(planeMesh.matrix);
           hitMatrix.compose(hit.point, tempQuat, new THREE.Vector3(1, 1, 1));
-          hitValid = true;
+          hitFoundThisFrame = true;
         }
+      }
+
+      // Fallback 2: an infinite virtual floor at the last known real hit
+      // height. Both methods above depend on ARCore already having built
+      // something — a full plane polygon, or at least the point-cloud
+      // hit-test result — for exactly where you're currently looking. Once
+      // we've gotten ONE real hit anywhere, though, we know roughly how
+      // high the floor/tabletop is, and a same-height point straight ahead
+      // of the camera is very likely still on that same surface. This lets
+      // the reticle keep up as you pan the phone across a surface that's
+      // already been found, even into areas ARCore hasn't finished mapping
+      // yet, instead of going blank until it catches up. Bounded to a
+      // sensible reach (not behind the camera, not absurdly far away) so a
+      // mathematically-infinite plane can't produce a nonsense-far "hit."
+      if (!hitFoundThisFrame && viewerPose && knownFloorY !== null) {
+        fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
+        fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
+        fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
+        fallbackRaycaster.set(fallbackOrigin, fallbackDirection);
+        virtualFloorPlane.set(new THREE.Vector3(0, 1, 0), -knownFloorY);
+
+        const distance = fallbackRaycaster.ray.distanceToPlane(virtualFloorPlane);
+        if (distance !== null && distance > 0 && distance < 6) {
+          fallbackRaycaster.ray.at(distance, virtualFloorHit);
+          hitMatrix.setPosition(virtualFloorHit);
+          hitFoundThisFrame = true;
+        }
+      }
+
+      if (hitFoundThisFrame) {
+        hitValid = true;
+        missedHitFrames = 0;
+        knownFloorY = hitMatrix.elements[13]; // translation Y component
+      } else if (hitValid && missedHitFrames < HIT_GRACE_FRAMES) {
+        // Fallback 3: a short grace period. Tracking can drop for a single
+        // frame here and there even while pointed squarely at a good
+        // surface — hiding and reshowing the reticle every time that
+        // happens reads as "detection is slow/flaky." Briefly hold the
+        // last known-good hit instead of blanking immediately.
+        missedHitFrames++;
+      } else {
+        hitValid = false;
+        missedHitFrames = 0;
+        knownFloorY = null;
       }
 
       // Drag-to-move: while a press is active over the placed model, follow
