@@ -17,7 +17,7 @@ import { T } from "./tokens.mts";
  *
  * Flow:
  *   1. Request an 'immersive-ar' session with 'hit-test' required and
- *      'dom-overlay' + 'plane-detection' optional.
+ *      'dom-overlay' + 'plane-detection' + 'depth-sensing' optional.
  *   2. Each frame, sync detected XRPlanes to translucent green meshes so the
  *      user can see what's been scanned so far (plane-detection is additive
  *      to hit-test — it doesn't speed up ARCore's own scan, but it surfaces
@@ -45,22 +45,37 @@ import { T } from "./tokens.mts";
  *      the `modelScale` prop) and never changes afterward — there is no
  *      in-session resize gesture, intentionally, so the model always reads
  *      at a single, predictable size.
- *   7. A two-finger horizontal drag rotates the placed model around its own
- *      vertical (Y) axis — read directly from ordinary browser TouchEvents
- *      on the dom-overlay element (see onOverlayTouchStart/Move/End below).
- *      Only the horizontal component of the two-finger drag drives it, so a
- *      slight vertical wobble while rotating doesn't fight the gesture. We
- *      only take over (preventDefault) once a second finger actually lands
- *      and a model exists, so single-finger taps/drags keep working exactly
- *      as before, routed through the normal WebXR 'select'/transient-hit-test
- *      flow untouched.
- *   8. Surface detection has two layers: the native WebXR hit test (now
- *      requested against both planes AND point-cloud features, so it can
- *      succeed before ARCore/ARKit has committed to a full plane polygon),
- *      plus a manual Three.js raycast fallback against the plane meshes
- *      we've already built from plane-detection, used only on frames where
- *      the native hit test comes back empty. This meaningfully reduces
- *      "reticle disappears for a moment" gaps before anything is placed.
+ *   7. A two-finger TWIST rotates the placed model around its own vertical
+ *      (Y) axis — read directly from ordinary browser TouchEvents on the
+ *      dom-overlay element (see onOverlayTouchStart/Move/End below). This
+ *      matches Scene Viewer's own rotate gesture: we track the angle of the
+ *      line connecting the two touch points and turn the model by however
+ *      much THAT angle changes, so rotating your two fingers relative to
+ *      each other (like turning a dial) is what spins the model — not a
+ *      one-directional horizontal pan of the midpoint. Because it's a 1:1
+ *      angle mapping there's no sensitivity constant to tune: twist your
+ *      fingers 90°, the model turns 90°. We only take over (preventDefault)
+ *      once a second finger actually lands and a model exists, so
+ *      single-finger taps/drags keep working exactly as before, routed
+ *      through the normal WebXR 'select'/transient-hit-test flow untouched.
+ *   8. Surface detection now has THREE layers, tried in order each frame
+ *      until one succeeds, so the reticle/placement can go live as early as
+ *      possible instead of waiting on the slowest signal:
+ *        a. The native WebXR hit test, requested against both planes AND
+ *           point-cloud features, so it can succeed before ARCore/ARKit has
+ *           committed to a full plane polygon.
+ *        b. The depth-sensing API (if the browser/device grants it): a live
+ *           per-pixel depth buffer that's often populated even earlier than
+ *           (a), and independently of it — we sample the depth at screen
+ *           center each frame and project it out along the camera's forward
+ *           ray to get a surface point. This is a genuinely new, faster
+ *           signal, not just a re-read of (a) or (c).
+ *        c. A manual Three.js raycast against the plane meshes we've
+ *           already built from plane-detection, used only on frames where
+ *           neither (a) nor (b) produced a result.
+ *      All three are purely additive fallbacks — if a browser doesn't grant
+ *      depth-sensing or plane-detection, those layers simply never fire and
+ *      behavior is identical to before.
  *   9. A "Use Scene Viewer instead" button is available throughout the
  *      active session (not just on error/unsupported states) so the user
  *      can voluntarily switch away from WebXR even when it's working fine.
@@ -71,9 +86,10 @@ import { T } from "./tokens.mts";
  * Note on speed: the actual scan/tracking speed is governed by ARCore's own
  * SLAM pipeline, which this component only reads from each frame — there's
  * no parameter here that makes the underlying scan itself faster. What this
- * does improve is *perceived* speed and clarity, by showing scan progress
- * (detected planes) as soon as it exists, rather than leaving the user
- * staring at a blank camera feed with no feedback until a hit-test succeeds.
+ * does improve is *perceived* speed and reliability, by reading from every
+ * surface signal the platform exposes (hit-test, depth, plane meshes) and
+ * taking whichever one resolves first each frame, rather than leaving the
+ * user staring at a blank camera feed until one specific signal succeeds.
  *
  * Entry flow: this component auto-starts the XR session as soon as support
  * is confirmed, reusing the user-activation from whatever click/tap sent the
@@ -89,6 +105,9 @@ import { T } from "./tokens.mts";
  *    iOS Safari does not support the WebXR Device API for AR as of this
  *    writing — verify current support before relying on this as iOS's
  *    primary path)
+ *  - depth-sensing is optional and device-dependent (ARCore Depth API
+ *    hardware/software support varies by phone) — feature-detected at
+ *    runtime, so its absence never breaks placement or the reticle.
  */
 
 interface WebXRPlacementViewerProps {
@@ -203,7 +222,15 @@ export function WebXRPlacementViewer({
 
       const sessionInit: any = {
         requiredFeatures: ["local", "hit-test"],
-        optionalFeatures: ["dom-overlay", "plane-detection"],
+        // depth-sensing is optional and only honored by browsers/devices
+        // that support ARCore's Depth API — if the device can't grant it,
+        // the session still starts fine and depth simply stays unavailable
+        // (guarded at every use site below via feature detection).
+        optionalFeatures: ["dom-overlay", "plane-detection", "depth-sensing"],
+        depthSensing: {
+          usagePreference: ["cpu-optimized", "gpu-optimized"],
+          dataFormatPreference: ["luminance-alpha", "float32"],
+        },
       };
       if (overlayRef.current) {
         sessionInit.domOverlay = { root: overlayRef.current };
@@ -355,28 +382,29 @@ export function WebXRPlacementViewer({
     // that touch point.
     const modelHitRaycaster = new THREE.Raycaster();
 
-    // --- Two-finger twist-to-rotate state ---
-    // Scene Viewer (and AR Quick Look) rotate the model based on the TWIST
-    // angle between your two fingers — as the line connecting them turns,
-    // the model turns with it — not on how far the pair drags sideways.
-    // That's what this reads: the angle of the vector from touch 0 to touch
-    // 1, tracked frame to frame, with the model's Y-rotation following the
-    // same angular delta 1:1 (a half-turn of your fingers around each other
-    // is a half-turn of the model). Read directly from DOM touch events on
-    // the dom-overlay element, since dom-overlay is specifically designed
-    // to receive real TouchEvents during an immersive session. We only take
-    // over (preventDefault) once a second finger actually lands and a model
+    // --- Two-finger TWIST rotate state ---
+    // Read directly from DOM touch events on the dom-overlay element rather
+    // than XR input sources, since a 2-finger gesture is naturally expressed
+    // as ordinary browser TouchEvents (dom-overlay is specifically designed
+    // to receive these during an immersive session). We only take over
+    // (preventDefault) once a second finger actually lands and a model
     // exists, so single-finger taps/drags keep working exactly as before,
     // routed through the normal WebXR 'select'/transient-hit-test flow
     // untouched.
     let rotateStartAngle: number | null = null;
     let rotateStartRotationY = 0;
 
+    // Angle (radians) of the line connecting the two touch points, in
+    // screen space. Tracking the CHANGE in this angle — rather than the
+    // horizontal movement of their midpoint, as a plain 2-finger pan would
+    // — is what makes this a "twist" gesture: rotating your two fingers
+    // relative to each other (like turning a dial) is what spins the model,
+    // matching Scene Viewer's own rotate gesture. It's also a 1:1 angle
+    // mapping, so there's no separate sensitivity constant to tune.
     function twoTouchAngle(touches: TouchList): number {
-      return Math.atan2(
-        touches[1].clientY - touches[0].clientY,
-        touches[1].clientX - touches[0].clientX
-      );
+      const dx = touches[1].clientX - touches[0].clientX;
+      const dy = touches[1].clientY - touches[0].clientY;
+      return Math.atan2(dy, dx);
     }
 
     function onOverlayTouchStart(e: TouchEvent) {
@@ -390,11 +418,13 @@ export function WebXRPlacementViewer({
     function onOverlayTouchMove(e: TouchEvent) {
       if (rotateStartAngle !== null && e.touches.length === 2 && placedModel) {
         e.preventDefault();
-        const angle = twoTouchAngle(e.touches);
-        // Screen Y grows downward, so a clockwise twist on screen is a
-        // negative angle delta in standard math convention — negate it so
-        // twisting fingers clockwise turns the model clockwise too.
-        const deltaAngle = -(angle - rotateStartAngle);
+        const currentAngle = twoTouchAngle(e.touches);
+        // Screen-space angle increases clockwise, while a clockwise twist
+        // (as seen from above, looking down at the placed model) should
+        // turn the model in the negative Y-rotation direction under
+        // Three.js's right-handed coordinate convention — hence the sign
+        // flip here.
+        const deltaAngle = -(currentAngle - rotateStartAngle);
         placedModel.rotation.y = rotateStartRotationY + deltaAngle;
       }
     }
@@ -498,7 +528,7 @@ export function WebXRPlacementViewer({
     // entityTypes: hit-test against point-cloud features as well as full
     // planes, not just planes alone. ARCore/ARKit often have usable depth
     // points on a surface before they've built up enough data to commit to
-    // a full plane polygon — testing against points too means the live hit
+    // a full plane polygon, so testing against points too means the live hit
     // test (and therefore placement) can succeed earlier, before a plane
     // exists.
     const hitTestSource = await (session as any).requestHitTestSource({
@@ -515,33 +545,13 @@ export function WebXRPlacementViewer({
 
     setPhase("active-searching");
 
-    // Reused every frame for the native + fallback hit test, so placement
+    // Reused every frame for the native + fallback hit tests, so placement
     // (onSelect) always has the latest live result to work with — even
     // though, once a model exists, the *visual* reticle no longer shows
     // this and instead pins itself under the placed model (see the
     // animation loop below).
     const hitMatrix = new THREE.Matrix4();
     let hitValid = false;
-    // Remembers the Y height of the most recent successful hit, so we can
-    // fall back to an infinite virtual floor at that height on frames where
-    // both the native hit test AND the plane-mesh raycast fail — this fills
-    // in gaps *before* a plane's polygon has grown to cover where you're
-    // looking, without waiting for it to catch up. Reset to null whenever
-    // there hasn't been a real hit in a while (see HIT_GRACE_FRAMES below),
-    // so it can't go on suggesting a floor height that's no longer relevant.
-    let knownFloorY: number | null = null;
-    // Once we DO get a real hit, keep the reticle alive for a few more
-    // frames even if every method above misses — camera-tracking / hit-test
-    // results can flicker for a single frame here and there even while
-    // pointed at a perfectly good surface, and hiding+reshowing the reticle
-    // every time reads as "detection is slow." A short grace window trades
-    // a little raw accuracy (using a slightly stale position for a few
-    // frames) for a much steadier-feeling reticle. Kept short enough that
-    // moving the phone away from a surface still hides it quickly.
-    let missedHitFrames = 0;
-    const HIT_GRACE_FRAMES = 6; // ~0.1s at 60fps
-    const virtualFloorPlane = new THREE.Plane();
-    const virtualFloorHit = new THREE.Vector3();
 
     function onSelect() {
       // A drag just ended on this same press — the model has already been
@@ -653,12 +663,16 @@ export function WebXRPlacementViewer({
     }
     session.addEventListener("end", onSessionEnd);
 
-    // Reused every frame for the raycast fallback below, to avoid
-    // allocating new THREE objects 60 times a second.
+    // Reused every frame for the plane-mesh raycast fallback below, to
+    // avoid allocating new THREE objects 60 times a second.
     const fallbackRaycaster = new THREE.Raycaster();
     const fallbackViewerMatrix = new THREE.Matrix4();
     const fallbackOrigin = new THREE.Vector3();
     const fallbackDirection = new THREE.Vector3();
+    // Reused every frame for the depth-sensing fallback below.
+    const depthViewMatrix = new THREE.Matrix4();
+    const depthOrigin = new THREE.Vector3();
+    const depthForward = new THREE.Vector3();
 
     renderer.setAnimationLoop((_time, frame: any) => {
       if (!frame) return;
@@ -667,29 +681,58 @@ export function WebXRPlacementViewer({
 
       syncPlaneMeshes(frame, localSpace);
 
-      // --- Live hit test (always computed, drives placement) ---
-      let hitFoundThisFrame = false;
-
+      // --- Layer 1: native hit test (always computed, drives placement) ---
+      hitValid = false;
       if (hitTestSource && viewerPose) {
         const hitTestResults = frame.getHitTestResults(hitTestSource);
         if (hitTestResults.length > 0) {
           const pose = hitTestResults[0].getPose(localSpace);
           if (pose) {
             hitMatrix.fromArray(pose.transform.matrix);
-            hitFoundThisFrame = true;
+            hitValid = true;
           }
         }
       }
 
-      // Fallback 1: the native hit test can occasionally miss for a frame
-      // or two even though a plane has already been detected right where
-      // the user is looking (e.g. near a plane's edge, or just ARCore's
-      // own internal update cadence). Rather than treat the hit as missing
-      // and waiting, raycast against the plane meshes we already have from
-      // plane-detection instead — this measurably reduces gaps, using data
-      // that's already on hand, without waiting on the next native
-      // hit-test result.
-      if (!hitFoundThisFrame && viewerPose && planeMeshes.size > 0) {
+      // --- Layer 2: depth-sensing fallback ---
+      // The depth-sensing feature (if granted — device/browser dependent)
+      // gives a live per-pixel depth buffer that's frequently populated
+      // even before layer 1 succeeds, and independently of it. We sample
+      // the depth at screen center and project it out along the camera's
+      // own forward ray to get a candidate surface point. This is wrapped
+      // in a try/catch and a typeof check so browsers without the API (or
+      // frames where it hasn't warmed up yet) just fall through to layer 3
+      // exactly as before — nothing here can break existing behavior.
+      if (!hitValid && viewerPose && typeof frame.getDepthInformation === "function") {
+        try {
+          const view = viewerPose.views[0];
+          const depthInfo = frame.getDepthInformation(view);
+          if (depthInfo) {
+            const depthMeters = depthInfo.getDepthInMeters(0.5, 0.5);
+            if (depthMeters > 0 && isFinite(depthMeters)) {
+              depthViewMatrix.fromArray(view.transform.matrix);
+              depthOrigin.setFromMatrixPosition(depthViewMatrix);
+              depthForward.set(0, 0, -1).transformDirection(depthViewMatrix);
+              const point = depthOrigin.clone().addScaledVector(depthForward, depthMeters);
+              hitMatrix.makeTranslation(point.x, point.y, point.z);
+              hitValid = true;
+            }
+          }
+        } catch {
+          // Depth API present but this frame's query failed (e.g. not yet
+          // warmed up) — fall through to the plane-mesh raycast below.
+        }
+      }
+
+      // --- Layer 3: raycast against our own plane meshes ---
+      // The native hit test can occasionally miss for a frame or two even
+      // though a plane has already been detected right where the user is
+      // looking (e.g. near a plane's edge, or just ARCore's own internal
+      // update cadence). Rather than treat the hit as missing and waiting,
+      // raycast against the plane meshes we already have from
+      // plane-detection instead — using data that's already on hand,
+      // without waiting on the next native hit-test or depth result.
+      if (!hitValid && viewerPose && planeMeshes.size > 0) {
         fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
         fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
         fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
@@ -701,52 +744,8 @@ export function WebXRPlacementViewer({
           const planeMesh = hit.object as THREE.Mesh;
           const tempQuat = new THREE.Quaternion().setFromRotationMatrix(planeMesh.matrix);
           hitMatrix.compose(hit.point, tempQuat, new THREE.Vector3(1, 1, 1));
-          hitFoundThisFrame = true;
+          hitValid = true;
         }
-      }
-
-      // Fallback 2: an infinite virtual floor at the last known real hit
-      // height. Both methods above depend on ARCore already having built
-      // something — a full plane polygon, or at least the point-cloud
-      // hit-test result — for exactly where you're currently looking. Once
-      // we've gotten ONE real hit anywhere, though, we know roughly how
-      // high the floor/tabletop is, and a same-height point straight ahead
-      // of the camera is very likely still on that same surface. This lets
-      // the reticle keep up as you pan the phone across a surface that's
-      // already been found, even into areas ARCore hasn't finished mapping
-      // yet, instead of going blank until it catches up. Bounded to a
-      // sensible reach (not behind the camera, not absurdly far away) so a
-      // mathematically-infinite plane can't produce a nonsense-far "hit."
-      if (!hitFoundThisFrame && viewerPose && knownFloorY !== null) {
-        fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
-        fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
-        fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
-        fallbackRaycaster.set(fallbackOrigin, fallbackDirection);
-        virtualFloorPlane.set(new THREE.Vector3(0, 1, 0), -knownFloorY);
-
-        const distance = fallbackRaycaster.ray.distanceToPlane(virtualFloorPlane);
-        if (distance !== null && distance > 0 && distance < 6) {
-          fallbackRaycaster.ray.at(distance, virtualFloorHit);
-          hitMatrix.setPosition(virtualFloorHit);
-          hitFoundThisFrame = true;
-        }
-      }
-
-      if (hitFoundThisFrame) {
-        hitValid = true;
-        missedHitFrames = 0;
-        knownFloorY = hitMatrix.elements[13]; // translation Y component
-      } else if (hitValid && missedHitFrames < HIT_GRACE_FRAMES) {
-        // Fallback 3: a short grace period. Tracking can drop for a single
-        // frame here and there even while pointed squarely at a good
-        // surface — hiding and reshowing the reticle every time that
-        // happens reads as "detection is slow/flaky." Briefly hold the
-        // last known-good hit instead of blanking immediately.
-        missedHitFrames++;
-      } else {
-        hitValid = false;
-        missedHitFrames = 0;
-        knownFloorY = null;
       }
 
       // Drag-to-move: while a press is active over the placed model, follow
@@ -922,7 +921,7 @@ export function WebXRPlacementViewer({
         {phase === "active-placed" && (
           <div style={{ ...coachStyle, top: "auto", bottom: "16%", pointerEvents: "none" }}>
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
-              Tap elsewhere to move it, drag to slide it, or use two fingers
+              Tap elsewhere to move it, drag to slide it, or twist two fingers
               to rotate it.
             </span>
           </div>
