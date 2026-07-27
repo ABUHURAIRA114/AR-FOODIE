@@ -162,7 +162,7 @@ export function WebXRPlacementViewer({
   onExit,
   onFallbackToSceneViewer,
   modelScale = 1,
-  experimentalInSessionFlashlight = false,
+  experimentalInSessionFlashlight = true,
 }: WebXRPlacementViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
