@@ -343,8 +343,17 @@ export function WebXRPlacementViewer({
     // subsequent 'select' event (which always fires on release, drag or not)
     // knows to skip its own re-placement logic instead of jumping the model
     // to the current hit-test result right after a drag.
+    //
+    // dragOffset preserves wherever ON the model you first grabbed it —
+    // matching Scene Viewer's drag feel, where the model moves relative to
+    // your finger rather than re-centering itself under your finger the
+    // instant you start dragging. It's computed once, on the first frame of
+    // a drag, as (model position at grab time) − (hit-test position at grab
+    // time), then re-applied every frame: model position = current hit-test
+    // position + that same offset.
     let draggingInputSource: XRInputSource | null = null;
     let dragOccurred = false;
+    let dragOffset: THREE.Vector3 | null = null;
     // Reused each time a select/selectstart fires, to check whether the tap
     // actually landed on the placed model before arming a drag — without
     // this, any tap anywhere on screen would grab the model and snap it to
@@ -580,6 +589,7 @@ export function WebXRPlacementViewer({
     function onSelectEnd(event: any) {
       if (draggingInputSource === event.inputSource) {
         draggingInputSource = null;
+        dragOffset = null;
       }
     }
 
@@ -671,16 +681,26 @@ export function WebXRPlacementViewer({
 
       // Drag-to-move: while a press is active over the placed model, follow
       // that specific touch point's own hit test each frame so the model
-      // slides along the surface under the finger.
+      // slides along the surface under the finger — keeping the offset
+      // between where it was first grabbed and the hit-test position, so it
+      // doesn't jump to re-center under the finger the moment the drag
+      // starts (matching Scene Viewer's drag feel).
       if (draggingInputSource && placedModel && transientHitTestSource) {
         const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
         for (const result of transientResults) {
           if (result.inputSource === draggingInputSource && result.results.length > 0) {
             const pose = result.results[0].getPose(localSpace);
             if (pose) {
-              placedModel.position.setFromMatrixPosition(
+              const hitPosition = new THREE.Vector3().setFromMatrixPosition(
                 new THREE.Matrix4().fromArray(pose.transform.matrix)
               );
+              if (!dragOffset) {
+                // First frame of this drag — capture how far the model's
+                // position currently is from this hit-test point, and hold
+                // that offset for the rest of the drag.
+                dragOffset = placedModel.position.clone().sub(hitPosition);
+              }
+              placedModel.position.copy(hitPosition).add(dragOffset);
               dragOccurred = true;
             }
           }
