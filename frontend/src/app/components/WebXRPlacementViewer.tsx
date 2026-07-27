@@ -197,15 +197,27 @@ export function WebXRPlacementViewer({
   // for the WebXR session, so opening a second getUserMedia stream on top
   // of it can cause the OS to forcibly kill one of the two streams a moment
   // later — which looks like "the flashlight turns off by itself and the
-  // camera briefly glitches." This is a hardware/OS-level conflict, not
-  // something fixable purely in JS. What IS fixable, and handled below, is
-  // making sure that when it happens we (a) notice immediately via the
-  // track's own 'ended'/'mute' events instead of silently going stale, (b)
-  // never let a second tap fire an overlapping attempt while one is still
-  // in flight (that overlap was the likely cause of the "second tap does
-  // nothing / crashes" symptom), and (c) give up cleanly and hide the
-  // button after a repeated failure rather than let the user keep hitting a
-  // broken control.
+  // camera briefly glitches," or on some devices, crashes the tab entirely.
+  // That crash happens below the JS layer (in the OS/driver's camera
+  // pipeline), so no try/catch can protect against it once it happens.
+  //
+  // The one lever we DO have is acquisition ORDER. Rather than opening the
+  // flashlight stream lazily on first tap (mid-session, after ARCore
+  // already holds the camera exclusively — the ordering that was crashing
+  // the tab), we now acquire it once, up front, BEFORE requesting the
+  // immersive-ar session at all (see requestSessionWithPreacquiredFlashlight
+  // below). Some camera HALs allow a *second* client (WebXR) in after we
+  // already hold the first slot, even when the reverse order fails — this
+  // is not guaranteed, but it's a genuinely different failure mode worth
+  // trying. If requestSession itself fails with our stream open, we
+  // release it and retry without flashlight rather than let AR itself be
+  // blocked by this experiment.
+  //
+  // Because of that, toggleFlashlight below deliberately does NOT try to
+  // re-acquire the stream if it's missing mid-session — that mid-session
+  // acquisition is exactly the operation we're trying to avoid. If the
+  // pre-acquired track ever dies, we just mark flashlight unavailable for
+  // the rest of the session instead of trying again.
   //
   // Two more things that previously made this unreliable, both addressed:
   //  - Without an *exact* facingMode match, some devices silently handed
@@ -234,14 +246,16 @@ export function WebXRPlacementViewer({
     if (track) {
       // If the OS/driver kills this track out from under us (typically
       // because the AR session's camera claim won the contention), notice
-      // right away instead of leaving flashlightOn/flashlightTrackRef out
-      // of sync with reality — that stale state is what made the button
-      // look unresponsive or throw on the next tap.
+      // right away and mark flashlight unavailable — we deliberately do
+      // NOT try to re-acquire mid-session (see the caveat above), so this
+      // is treated as a hard stop for the rest of the session, not a
+      // transient blip to recover from.
       const handleHardwareStop = () => {
         if (flashlightTrackRef.current === track) {
           flashlightTrackRef.current = null;
         }
         setFlashlightOn(false);
+        setFlashlightSupported(false);
       };
       track.addEventListener("ended", handleHardwareStop);
       track.addEventListener("mute", handleHardwareStop);
@@ -260,39 +274,27 @@ export function WebXRPlacementViewer({
   }
 
   async function toggleFlashlight() {
-    // Re-entrancy guard: ignore a tap if a previous acquire/apply sequence
-    // hasn't resolved yet, instead of letting two overlapping attempts race
-    // against the same camera hardware.
+    // Re-entrancy guard: ignore a tap if a previous apply is still in
+    // flight, instead of letting two overlapping attempts race against the
+    // same camera hardware.
     if (flashlightBusyRef.current) return;
     flashlightBusyRef.current = true;
 
     try {
-      let track = flashlightTrackRef.current;
+      const track = flashlightTrackRef.current;
+      // No mid-session re-acquisition here on purpose — see the caveat
+      // above. If the pre-acquired track is missing or dead, flashlight is
+      // simply unavailable for the rest of this session.
       if (!track || track.readyState !== "live") {
-        track = await acquireFlashlightTrack();
-        if (!track) {
-          setFlashlightSupported(false);
-          return;
-        }
-        const capabilities: any = track.getCapabilities?.() ?? {};
-        if (!capabilities.torch) {
-          track.stop();
-          setFlashlightSupported(false);
-          return;
-        }
-        flashlightTrackRef.current = track;
+        setFlashlightSupported(false);
+        return;
       }
 
       const next = !flashlightOn;
       await applyTorch(track, next);
-      // The apply call can succeed even on a track that the hardware is
-      // about to reclaim a moment later — that's the "opens for a while
-      // then closes" case, and it's handled separately by the 'ended'/'mute'
-      // listener in acquireFlashlightTrack, not here.
       setFlashlightOn(next);
     } catch {
-      // A failed attempt here (after we've already successfully toggled it
-      // at least once before) most likely means the camera is contended and
+      // A failed apply here most likely means the camera is contended and
       // this device can't reliably run both streams at once. Give up for
       // the rest of the session rather than leaving a control the user can
       // keep tapping into the same failure.
@@ -312,6 +314,53 @@ export function WebXRPlacementViewer({
     }
     flashlightBusyRef.current = false;
     setFlashlightOn(false);
+  }
+
+  // Grabs a torch-capable camera track BEFORE requesting the immersive-ar
+  // session, then requests the session with that stream still open. If the
+  // session request itself fails (plausibly because our stream is still
+  // holding the camera the HAL would otherwise hand to WebXR), the
+  // flashlight stream is released and the session is requested again
+  // without it — flashlight is an experiment, AR itself is not allowed to
+  // be blocked by it.
+  async function requestSessionWithPreacquiredFlashlight(
+    xr: any,
+    sessionInit: any
+  ): Promise<XRSession> {
+    let track: MediaStreamTrack | null = null;
+    try {
+      track = await acquireFlashlightTrack();
+      if (track) {
+        const capabilities: any = track.getCapabilities?.() ?? {};
+        if (!capabilities.torch) {
+          track.stop();
+          track = null;
+          setFlashlightSupported(false);
+        }
+      } else {
+        setFlashlightSupported(false);
+      }
+    } catch {
+      track = null;
+      setFlashlightSupported(false);
+    }
+
+    try {
+      const session: XRSession = await xr.requestSession("immersive-ar", sessionInit);
+      // Session came up fine even with our stream open — keep the track
+      // around so toggleFlashlight can use it directly. No further
+      // getUserMedia calls will happen during this session.
+      flashlightTrackRef.current = track;
+      return session;
+    } catch (err) {
+      if (track) {
+        track.stop();
+        setFlashlightSupported(false);
+      }
+      // Retry once without the flashlight stream open, so this experiment
+      // can't be the reason AR fails to start at all.
+      return xr.requestSession("immersive-ar", sessionInit);
+    }
   }
 
   // --- Feature-detect WebXR + hit-test support, then go straight into AR ---
@@ -365,7 +414,9 @@ export function WebXRPlacementViewer({
         sessionInit.domOverlay = { root: overlayRef.current };
       }
 
-      const session: XRSession = await xr.requestSession("immersive-ar", sessionInit);
+      const session: XRSession = experimentalInSessionFlashlight
+        ? await requestSessionWithPreacquiredFlashlight(xr, sessionInit)
+        : await xr.requestSession("immersive-ar", sessionInit);
       sessionRef.current = session;
 
       // dom-overlay was optional — if it didn't activate, domOverlayState will
