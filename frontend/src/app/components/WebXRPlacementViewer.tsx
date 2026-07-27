@@ -145,9 +145,9 @@ function createRoundedSquareRingGeometry(outerHalf: number, innerHalf: number, c
 }
 
 // Pixels of two-finger horizontal drag needed for one full 360° rotation.
-// Smaller = more sensitive. Tuned so a comfortable thumb-to-thumb swipe
-// across roughly a third of the screen spins the model about 90°.
-const ROTATE_PIXELS_PER_FULL_TURN = 900;
+// Smaller = more sensitive/faster. Tuned so a comfortable thumb-to-thumb
+// swipe across roughly a third of the screen spins the model about 180°.
+const ROTATE_PIXELS_PER_FULL_TURN = 400;
 
 export function WebXRPlacementViewer({
   glbUrl,
@@ -345,6 +345,11 @@ export function WebXRPlacementViewer({
     // to the current hit-test result right after a drag.
     let draggingInputSource: XRInputSource | null = null;
     let dragOccurred = false;
+    // Reused each time a select/selectstart fires, to check whether the tap
+    // actually landed on the placed model before arming a drag — without
+    // this, any tap anywhere on screen would grab the model and snap it to
+    // that touch point.
+    const modelHitRaycaster = new THREE.Raycaster();
 
     // --- Two-finger horizontal rotate state ---
     // Read directly from DOM touch events on the dom-overlay element rather
@@ -545,11 +550,29 @@ export function WebXRPlacementViewer({
       console.log("[WebXRPlacementViewer] Placed model at", placedModel.position, "scale", placedModel.scale);
     }
 
-    // Press-and-hold on the placed model starts a drag; releasing ends it.
-    // Only armed once a model exists — before that, taps go through the
-    // normal placement flow above instead.
+    // Press-and-hold ON THE MODEL ITSELF starts a drag; releasing ends it.
+    // A tap anywhere else on screen (even once a model exists) no longer
+    // arms dragging — we raycast the tap's own targetRaySpace pose against
+    // the placed model first, and only start the drag if it actually hits.
+    // Without that check, any tap anywhere would grab the model and snap it
+    // to that touch point, which is the "snapping to fingers" behavior this
+    // replaces.
     function onSelectStart(event: any) {
-      if (placedModel) {
+      if (!placedModel) return;
+      const frame = event.frame as XRFrame | undefined;
+      if (!frame) return;
+      const pose = frame.getPose(event.inputSource.targetRaySpace, localSpace);
+      if (!pose) return;
+
+      const m = pose.transform.matrix;
+      const origin = new THREE.Vector3(m[12], m[13], m[14]);
+      // The ray points down the pose's own -Z axis (the WebXR targetRay
+      // convention), i.e. the negated third column of its rotation matrix.
+      const direction = new THREE.Vector3(-m[8], -m[9], -m[10]).normalize();
+      modelHitRaycaster.set(origin, direction);
+
+      const hits = modelHitRaycaster.intersectObject(placedModel, true);
+      if (hits.length > 0) {
         draggingInputSource = event.inputSource;
       }
     }
