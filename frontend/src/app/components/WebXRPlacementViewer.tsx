@@ -302,7 +302,7 @@ export function WebXRPlacementViewer({
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x4ade80,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.1,
       side: THREE.DoubleSide,
     });
 
