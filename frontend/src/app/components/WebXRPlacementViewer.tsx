@@ -18,13 +18,11 @@ import { T } from "./tokens.mts";
  * Flow:
  *   1. Request an 'immersive-ar' session with 'hit-test' required and
  *      'dom-overlay' + 'plane-detection' + 'depth-sensing' optional.
- *   2. Each frame, sync detected XRPlanes to meshes rendered at opacity 0 —
- *      invisible on screen, but kept in the scene purely so the layer-3
- *      raycast fallback in step 8 has something to hit. plane-detection is
- *      additive to hit-test — it doesn't speed up ARCore's own scan, but it
- *      gives that fallback data to work with sooner, since planes often
- *      exist before a clean hit-test result does. Also run a hit test from
- *      the 'viewer' reference space.
+ *   2. Each frame, sync detected XRPlanes to translucent green meshes so the
+ *      user can see what's been scanned so far (plane-detection is additive
+ *      to hit-test — it doesn't speed up ARCore's own scan, but it surfaces
+ *      progress sooner, since planes often appear before a clean hit-test
+ *      result does). Also run a hit test from the 'viewer' reference space.
  *      Before a model is placed, the reticle tracks that live hit test (in
  *      the 'local' reference space) so the user can see where a tap would
  *      place the model. Once a model IS placed, the reticle stops following
@@ -301,16 +299,10 @@ export function WebXRPlacementViewer({
     // also gives earlier visual feedback that scanning is working. These
     // stay visible even after the model is placed.
     const planeMeshes = new Map<XRPlane, THREE.Mesh>();
-    // opacity 0, not mesh.visible = false: the meshes still need to exist
-    // and stay in the scene for the layer-3 raycast fallback below to hit
-    // them (Three.js's Raycaster skips any object with visible === false
-    // entirely, which would silently disable that fallback). Setting
-    // opacity to 0 hides the green highlight from view while raycasting
-    // against it keeps working exactly as before.
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x4ade80,
       transparent: true,
-      opacity: 0,
+      opacity: 0.28,
       side: THREE.DoubleSide,
     });
 
@@ -934,7 +926,7 @@ export function WebXRPlacementViewer({
           <div style={{ ...coachStyle, pointerEvents: "none" }}>
             <span style={{ fontWeight: 700, color: T.accent }}>Move your phone slowly</span>
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
-              Point at a flat surface and tap to place.
+              Green highlights show surfaces found so far — tap one to place.
             </span>
           </div>
         )}
