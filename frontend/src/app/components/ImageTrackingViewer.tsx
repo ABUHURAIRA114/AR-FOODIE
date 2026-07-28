@@ -82,11 +82,40 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         anchor.onTargetFound = () => !cancelled && setPhase("found");
         anchor.onTargetLost = () => !cancelled && setPhase("scanning");
 
-        // Load the GLB onto the anchor.
+        // Load the GLB onto the anchor. DRACOLoader is required for any GLB
+        // that uses Draco mesh compression — without it attached,
+        // GLTFLoader can't decode the compressed geometry at all and the
+        // load silently fails (this was missing entirely before, which is
+        // exactly why Draco-compressed models wouldn't load here while
+        // uncompressed ones worked fine). Same decoder setup already
+        // proven working in WebXRPlacementViewer.tsx.
         const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+        const { DRACOLoader } = await import("three/examples/jsm/loaders/DRACOLoader.js");
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
+        dracoLoader.setDecoderConfig({ type: "wasm" });
+
         const loader = new GLTFLoader();
-        const gltf = await loader.loadAsync(glbUrl);
-        const model = gltf.scene;
+        loader.setDRACOLoader(dracoLoader);
+
+        let model: THREE.Object3D;
+        try {
+          const gltf = await loader.loadAsync(glbUrl);
+          model = gltf.scene;
+        } catch (err: any) {
+          // Caught specifically (rather than falling into the generic
+          // catch below) so a broken/incompatible model gives an
+          // actionable message instead of the same vague text shown for
+          // camera/permission problems.
+          console.error("[ImageTrackingViewer] Model load failed:", err);
+          if (!cancelled) {
+            setPhase("error");
+            setErrorMessage(`Couldn't load the 3D model. (${err?.message ?? "Unknown error"})`);
+          }
+          return;
+        } finally {
+          dracoLoader.dispose();
+        }
 
         // MindAR's anchor coordinate system has the tracked image lying flat
         // in the local XY plane: X = right, Y = up **within the image**, and
