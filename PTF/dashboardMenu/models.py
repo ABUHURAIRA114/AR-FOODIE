@@ -9,6 +9,9 @@ from django.utils.text import slugify
 def restaurant_logo_path(instance, filename):
     return f"restaurants/{instance.business_name}/logo/{filename}"
 
+def restaurant_mind_target_path(instance, filename):
+    return f"restaurants/{instance.business_name}/mind_target/{filename}"
+
 def category_image_path(instance, filename):
     return f"restaurants/{instance.restaurant.business_name}/categories/{instance.name}/{filename}"
 
@@ -43,6 +46,17 @@ class Restaurant(models.Model):
     description   = models.TextField(blank=True)
     primary_color = models.CharField(max_length=7, default="#FFC200")
     header_bg     = models.CharField(max_length=7, default="#f7f5f5")
+    mind_target   = models.FileField(
+        upload_to=restaurant_mind_target_path, blank=True, null=True,
+        help_text=(
+            "Compiled MindAR .mind target file for the image-tracking AR "
+            "fallback, generated from a marker image via MindAR's compiler: "
+            "https://hiukim.github.io/mind-ar-js-doc/tools/compile — one per "
+            "restaurant (e.g. a printed table tent or menu cover), shared by "
+            "every dish in this restaurant's menu. Scanning it and picking a "
+            "dish shows that dish's 3D model on top of this same marker."
+        ),
+    )
 
     # Plan & status
     plan = models.CharField(max_length=20, choices=[
@@ -115,14 +129,6 @@ class Dish(models.Model):
     # --- 3D / AR files (formerly on the standalone Scene model) ---
     glb_file       = models.FileField(upload_to=dish_glb_path, blank=True, null=True)
     usdz_file      = models.FileField(upload_to=dish_glb_path, blank=True, null=True)
-    mind_target    = models.FileField(
-        upload_to=dish_glb_path, blank=True, null=True,
-        help_text=(
-            "Compiled MindAR .mind target file for the image-tracking AR "
-            "fallback, generated from a marker image via MindAR's compiler: "
-            "https://hiukim.github.io/mind-ar-js-doc/tools/compile"
-        ),
-    )
 
     # --- Lighting (formerly on Scene) ---
     exposure = models.FloatField(

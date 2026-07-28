@@ -22,18 +22,25 @@ def api_dish(request, pk):
     Single-dish AR data for the full AR viewer (SceneViewer.tsx, reached via
     the frontend's /ar-view/<id> route) — everything it needs to render the
     3D model with the right lighting/AR settings, plus the optional
-    image-tracking .mind target. This is the direct replacement for the old
-    standalone Scene model's api_scene endpoint; all of that data now lives
-    directly on Dish.
+    image-tracking .mind target.
+
+    mind_target lives on Restaurant, not Dish — one marker image per
+    restaurant (e.g. a printed table tent), shared by every dish on that
+    restaurant's menu. Scanning that one marker and picking a dish shows
+    that dish's model on top of the same restaurant-level target, rather
+    than needing a separate marker printed per dish.
     """
-    dish = get_object_or_404(Dish, pk=pk, is_active=True)
+    dish = get_object_or_404(
+        Dish.objects.select_related('category__restaurant'), pk=pk, is_active=True
+    )
+    restaurant = dish.category.restaurant
     return JsonResponse({
         'id':          dish.id,
         'name':        dish.name,
         'description': dish.description,
         'glb_url':     request.build_absolute_uri(dish.glb_file.url) if dish.glb_file else None,
         'usdz_url':    request.build_absolute_uri(dish.usdz_file.url) if dish.usdz_file else None,
-        'mind_target_url': request.build_absolute_uri(dish.mind_target.url) if dish.mind_target else None,
+        'mind_target_url': request.build_absolute_uri(restaurant.mind_target.url) if restaurant.mind_target else None,
         **_dish_ar_fields(dish),
     })
 
