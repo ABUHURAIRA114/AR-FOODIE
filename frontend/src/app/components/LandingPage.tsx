@@ -675,7 +675,7 @@ function HowItWorks() {
         <FadeUp>
           <SectionLabel>Process</SectionLabel>
           <h2 style={{ fontSize: "clamp(1.8rem,4vw,2.8rem)", fontWeight: 800, letterSpacing: "-0.025em", color: T.text, marginBottom: "0.75rem" }}>
-            From Photo to AR in 48 Hours
+            From Photo to AR in 3 Simple Steps
           </h2>
           <p style={{ color: T.muted, fontSize: "1.05rem", lineHeight: 1.7, maxWidth: 520, margin: "0 auto" }}>
             No technical skills needed. Just share your dish photos and we handle everything else.
@@ -928,6 +928,7 @@ function PricingCard({ plan }: { plan: typeof plans[0] }) {
       <p style={{ fontSize: "2rem", fontWeight: 900, letterSpacing: "-0.03em", color: T.text, marginBottom: "0.2rem" }}>
         {plan.price} <span style={{ fontSize: "0.88rem", fontWeight: 400, color: T.muted }}>{plan.per}</span>
       </p>
+      <p style={{ fontSize: "0.85rem", fontWeight: 700, color: T.accent, marginBottom: "0.4rem" }}>{plan.dishLimit}</p>
 
       <div style={{ borderTop: `1px solid ${T.border}`, margin: "1.4rem 0" }} />
 
@@ -979,7 +980,7 @@ function PricingCard({ plan }: { plan: typeof plans[0] }) {
       >
         {plan.cta}
       </a>
-    </div>
+    </div> 
   );
 }
 
