@@ -266,7 +266,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
           {/* Restaurant logo — small circular badge, top-left corner */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={58} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={50} />
 
           {/* Search */}
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
@@ -311,7 +311,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
           <div style={{ flex: 1 }} />
 
           {/* Restaurant logo — centered in narrow view */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={44} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={38} />
 
           {/* Right spacer balances the hamburger on the left, search button right-aligned within it */}
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
