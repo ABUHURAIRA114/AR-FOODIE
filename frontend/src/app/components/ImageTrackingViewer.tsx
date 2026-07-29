@@ -19,7 +19,17 @@ import { T } from "./tokens.mts";
  * sideways — around the vertical axis standing up out of the marker image —
  * the same "turn a dial" gesture used in the WebXR path. It never tilts the
  * model up/down or side-to-side; only the spin around that single vertical
- * axis is exposed. See onContainerTouchStart/Move/End below.
+ * axis is exposed. See onTouchStart/Move/End below.
+ *
+ * Position: a single-finger press-and-drag directly on the model moves it
+ * around, as a position OFFSET from the marker image's own center — the
+ * model is a child of the anchor, so this never breaks tracking, it just
+ * shifts where on top of the (still-tracked) marker the model sits. Like
+ * the WebXR drag, the model snaps directly under the finger every frame
+ * (via a raycast against the marker's own flat plane, projected out from
+ * the touch point) rather than preserving a grabbed offset. Movement is
+ * confined to the marker's flat plane — it can't be dragged toward or away
+ * from the camera, only around across the surface of the image.
  *
  * Requires:
  *  - `npm install mind-ar three`
@@ -67,8 +77,13 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
   const mindarRef = useRef<any>(null);
   // Holds the spin group (see init() below) once the model has finished
   // loading, so the touch handlers — set up independently of the async
-  // load — can rotate it as soon as it exists.
+  // load — can rotate/move it as soon as it exists.
   const spinGroupRef = useRef<THREE.Group | null>(null);
+  // The anchor's own group, and the (fixed, non-moving) tracking camera —
+  // both needed by the drag handler to turn a screen-space touch point into
+  // a position on the marker's plane. Populated once init() creates them.
+  const anchorGroupRef = useRef<THREE.Group | null>(null);
+  const cameraRef = useRef<THREE.Camera | null>(null);
   const [phase, setPhase] = useState<TrackingPhase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -108,6 +123,7 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
 
         const { renderer: r, scene, camera } = mindarThree;
         renderer = r;
+        cameraRef.current = camera;
 
         // Force an explicitly transparent clear color. MindARThree sets
         // alpha:true on its internal renderer by default, but relying on
@@ -118,6 +134,7 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         renderer.setClearColor(0x000000, 0);
 
         const anchor = mindarThree.addAnchor(0);
+        anchorGroupRef.current = anchor.group;
 
         anchor.onTargetFound = () => !cancelled && setPhase("found");
         anchor.onTargetLost = () => !cancelled && setPhase("scanning");
@@ -328,18 +345,15 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
       document.querySelectorAll(".mindar-ui-overlay").forEach((el) => el.remove());
 
       spinGroupRef.current = null;
+      anchorGroupRef.current = null;
+      cameraRef.current = null;
     };
   }, [glbUrl, mindTargetUrl]);
 
-  // --- Two-finger TWIST rotate ---
-  // Rotates the model sideways only — spinning around the single vertical
-  // axis standing up out of the marker image, the way you'd spin a plate on
-  // a table. It never tilts the model up/down or side-to-side; those axes
-  // are simply never touched by this gesture.
-  //
+  // --- Single-finger DRAG (move) + two-finger TWIST (rotate) ---
   // Set up independently of the async model load in init() above: these
   // listeners attach to the container div as soon as it mounts, and each
-  // handler just checks spinGroupRef.current before doing anything, so
+  // handler just checks the relevant ref(s) before doing anything, so
   // touches before the model is ready are harmlessly ignored.
   useEffect(() => {
     const container = containerRef.current;
@@ -347,6 +361,34 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
 
     let rotateStartAngle: number | null = null;
     let rotateStartRotationZ = 0;
+    // Timestamp (performance.now()) up to which starting a new drag is
+    // locked out after a twist gesture ends — set whenever the second
+    // finger lifts, mirroring WebXRPlacementViewer, so a finger lingering
+    // or re-landing right at the tail end of a twist can't be misread as
+    // the start of a drag.
+    let dragLockUntil = 0;
+    const DRAG_LOCK_MS = 1000;
+
+    let dragging = false;
+    // Reused on every touchstart to test whether the touch actually landed
+    // on the model before arming a drag — without this, any single-finger
+    // tap anywhere on screen would grab the model and snap it there.
+    const raycaster = new THREE.Raycaster();
+    // Reused every touchmove while dragging, to project the touch point
+    // out onto the marker's own flat plane (its local Z=0 plane, in world
+    // space) and recover a 3D position on it.
+    const dragPlane = new THREE.Plane();
+    const planeHitPoint = new THREE.Vector3();
+
+    // Converts a touch's screen coordinates into normalized device
+    // coordinates (-1..1) relative to the container, for use with
+    // THREE.Raycaster.setFromCamera.
+    function touchToNDC(touch: Touch): THREE.Vector2 {
+      const rect = container.getBoundingClientRect();
+      const x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+      const y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+      return new THREE.Vector2(x, y);
+    }
 
     // Angle (radians) of the line connecting the two touch points, in
     // screen space — tracking the CHANGE in this angle (rather than the
@@ -360,15 +402,46 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
     }
 
     function onTouchStart(e: TouchEvent) {
-      if (e.touches.length === 2 && spinGroupRef.current) {
+      const spinGroup = spinGroupRef.current;
+      const anchorGroup = anchorGroupRef.current;
+      const camera = cameraRef.current;
+
+      if (e.touches.length === 2 && spinGroup) {
         e.preventDefault();
+        // A second finger landing cancels any drag in progress — only one
+        // gesture acts on the model at a time.
+        dragging = false;
         rotateStartAngle = twoTouchAngle(e.touches);
-        rotateStartRotationZ = spinGroupRef.current.rotation.z;
+        rotateStartRotationZ = spinGroup.rotation.z;
+        return;
+      }
+
+      if (
+        e.touches.length === 1 &&
+        spinGroup &&
+        anchorGroup &&
+        camera &&
+        rotateStartAngle === null &&
+        performance.now() >= dragLockUntil
+      ) {
+        // Only arm the drag if this touch actually landed on the model —
+        // raycast against its real geometry first, exactly like the
+        // WebXR path does before starting its own drag.
+        raycaster.setFromCamera(touchToNDC(e.touches[0]), camera);
+        const hits = raycaster.intersectObject(spinGroup, true);
+        if (hits.length > 0) {
+          e.preventDefault();
+          dragging = true;
+        }
       }
     }
 
     function onTouchMove(e: TouchEvent) {
-      if (rotateStartAngle !== null && e.touches.length === 2 && spinGroupRef.current) {
+      const spinGroup = spinGroupRef.current;
+      const anchorGroup = anchorGroupRef.current;
+      const camera = cameraRef.current;
+
+      if (rotateStartAngle !== null && e.touches.length === 2 && spinGroup) {
         e.preventDefault();
         const currentAngle = twoTouchAngle(e.touches);
         // Sign flip for the same reason as the WebXR path: a clockwise
@@ -376,12 +449,52 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         // model in the negative-angle direction under Three.js's
         // right-handed convention for rotation about the anchor's Z axis.
         const deltaAngle = -(currentAngle - rotateStartAngle);
-        spinGroupRef.current.rotation.z = rotateStartRotationZ + deltaAngle;
+        spinGroup.rotation.z = rotateStartRotationZ + deltaAngle;
+        return;
+      }
+
+      if (dragging && e.touches.length === 1 && spinGroup && anchorGroup && camera) {
+        e.preventDefault();
+
+        // The marker's own flat plane, in world space: origin at the
+        // anchor's current (tracked) position, normal along the anchor's
+        // local Z axis (the axis perpendicular to the image — see the
+        // spin-group comment above for why Z is "up off the marker" here).
+        // Recomputed fresh every move since the anchor's pose updates each
+        // frame as tracking refines, so the plane always matches where the
+        // physical marker currently is.
+        const planeOrigin = new THREE.Vector3().setFromMatrixPosition(anchorGroup.matrixWorld);
+        const planeNormal = new THREE.Vector3(0, 0, 1)
+          .transformDirection(anchorGroup.matrixWorld)
+          .normalize();
+        dragPlane.setFromNormalAndCoplanarPoint(planeNormal, planeOrigin);
+
+        raycaster.setFromCamera(touchToNDC(e.touches[0]), camera);
+        const hit = raycaster.ray.intersectPlane(dragPlane, planeHitPoint);
+        if (hit) {
+          // Convert the world-space hit point into the anchor's own local
+          // space, then snap the spin group directly there — this is the
+          // model's position OFFSET from the marker's center, exactly like
+          // the WebXR path snapping the model to the finger, just confined
+          // to the marker's flat plane (X/Y) instead of full 3D space.
+          const localPoint = anchorGroup.worldToLocal(planeHitPoint.clone());
+          spinGroup.position.x = localPoint.x;
+          spinGroup.position.y = localPoint.y;
+        }
       }
     }
 
     function onTouchEnd(e: TouchEvent) {
+      if (e.touches.length < 1) {
+        dragging = false;
+      }
       if (e.touches.length < 2) {
+        if (rotateStartAngle !== null) {
+          // A twist gesture just ended — hold off on arming a new drag for
+          // a moment so a finger lifting or re-landing right at the tail
+          // end of the twist can't be misread as a drag starting.
+          dragLockUntil = performance.now() + DRAG_LOCK_MS;
+        }
         rotateStartAngle = null;
       }
     }
