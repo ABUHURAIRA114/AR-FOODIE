@@ -45,6 +45,23 @@ interface ImageTrackingViewerProps {
 
 type TrackingPhase = "loading" | "ready" | "scanning" | "found" | "camera-denied" | "error";
 
+// Stops the underlying getUserMedia MediaStream directly, rather than
+// relying solely on mindarThree.stop() to release the camera. This matters
+// because start()/stop() can race with an unmount: if start() is still
+// mid-flight when the component unmounts, calling stop() at that moment can
+// land before the camera stream even exists yet, silently doing nothing —
+// leaving the camera (and its still-live video element) running with
+// nothing left in our React tree to ever stop it again.
+function stopCameraStream(mindarThree: any) {
+  const video: HTMLVideoElement | undefined = mindarThree?.video;
+  const stream = video?.srcObject as MediaStream | undefined | null;
+  stream?.getTracks().forEach((track) => track.stop());
+  if (video) {
+    video.pause();
+    video.srcObject = null;
+  }
+}
+
 export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, modelScale = 1 }: ImageTrackingViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
@@ -73,6 +90,19 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         const mindarThree = new MindARThree({
           container: containerRef.current,
           imageTargetSrc: mindTargetUrl,
+          // MindAR's own built-in loading/scanning/error UI renders full-
+          // screen elements appended to document.body — NOT to our
+          // container div — as a separate DOM subtree from the rest of
+          // this component. We already show our own coaching UI (the
+          // "scanning" / "found" overlays below), so disable MindAR's
+          // copy entirely. Left enabled, it's what was staying on screen
+          // and blocking the whole page after exiting: it lives outside
+          // our container, so React unmounting this component doesn't
+          // remove it, and it sits on top of everything else with
+          // pointer-events capturing every tap.
+          uiLoading: "no",
+          uiScanning: "no",
+          uiError: "no",
         });
         mindarRef.current = mindarThree;
 
@@ -213,7 +243,23 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         setPhase("ready");
 
         await mindarThree.start();
-        if (cancelled) return;
+        if (cancelled) {
+          // The component was unmounted while start() was still in flight
+          // (e.g. the user exited right as the camera was spinning up).
+          // The cleanup function below already ran and couldn't stop
+          // anything yet, since the session didn't exist until just now —
+          // so stop it here instead, rather than leaving the camera (and
+          // MindAR's internal state) running with nothing left to ever
+          // tear it down.
+          try {
+            mindarThree.stop?.();
+          } catch {
+            // Session may not have been fully in a stoppable state — the
+            // explicit stopCameraStream call below is the real safety net.
+          }
+          stopCameraStream(mindarThree);
+          return;
+        }
         setPhase("scanning");
 
         // MindARThree.start() reconfigures the renderer/canvas internally as
@@ -261,8 +307,26 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
     return () => {
       cancelled = true;
       renderer?.setAnimationLoop(null);
-      mindarRef.current?.stop?.();
-      mindarRef.current?.renderer?.dispose?.();
+
+      const mindarThree = mindarRef.current;
+      try {
+        mindarThree?.stop?.();
+      } catch {
+        // Ignore — the explicit stopCameraStream call below is what
+        // actually guarantees the camera is released, regardless of
+        // whether MindAR's own stop() succeeded or was even in a state
+        // where it could run.
+      }
+      stopCameraStream(mindarThree);
+      mindarThree?.renderer?.dispose?.();
+
+      // Safety net: in case any older/cached build of MindAR's bundle still
+      // appended its built-in overlay UI to document.body before the
+      // uiLoading/uiScanning/uiError: "no" options above took effect, sweep
+      // it away explicitly. This is exactly the fixed, full-screen element
+      // that was staying on screen and swallowing every tap after exiting.
+      document.querySelectorAll(".mindar-ui-overlay").forEach((el) => el.remove());
+
       spinGroupRef.current = null;
     };
   }, [glbUrl, mindTargetUrl]);
