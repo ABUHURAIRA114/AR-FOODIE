@@ -1,9 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { T } from "./tokens.mts";
-import { RestaurantLogo } from "./RestaurantLogo";
 
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
+
+// primaryColor is fully restaurant-controlled and can be anything (including
+// light colors like the platform default yellow) — picking white text
+// unconditionally would be unreadable against those. This is a standard
+// perceptual-luminance approximation, not exact WCAG contrast, but more than
+// enough to pick a legible black/white split for arbitrary brand colors.
+function getContrastTextColor(hexColor: string): string {
+  const hex = hexColor?.replace("#", "") ?? "";
+  if (hex.length !== 6) return "#fff";
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  if ([r, g, b].some(Number.isNaN)) return "#fff";
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? "#1a1a1a" : "#fff";
+}
 
 interface Restaurant {
   id: number;
@@ -82,23 +97,13 @@ export function RestaurantListPage() {
         </p>
       ) : (
         <div
-          className="restaurant-list"
           style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.85rem",
-            maxWidth: 900,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: "1rem",
+            maxWidth: 1100,
           }}
         >
-          <style>{`
-            @media (max-width: 520px) {
-              .restaurant-list a { padding: 0.9rem 1rem !important; }
-              .restaurant-list a > span:last-child {
-                width: 100%;
-                text-align: center;
-              }
-            }
-          `}</style>
           {filtered.map(r => (
             <Link
               key={r.id}
@@ -107,62 +112,72 @@ export function RestaurantListPage() {
                 background: T.bg3,
                 border: `1px solid ${T.border}`,
                 borderRadius: 12,
-                padding: "1rem 1.2rem",
+                padding: "1.2rem",
                 textDecoration: "none",
                 color: T.text,
                 display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: "1rem",
+                flexDirection: "column",
+                gap: "0.6rem",
                 transition: "border-color 0.15s ease",
-                width: "100%",
-                boxSizing: "border-box",
               }}
             >
-              {/* Same shared logo component used by the menu templates:
-                  renders the logo at its natural aspect ratio (no forced
-                  square crop), or falls back to the restaurant's name as
-                  text if there's no logo or the image fails to load. */}
-              <RestaurantLogo logo={r.logo} name={r.name} size={56} />
-
-              {/* Name/city/description block. flex:1 + minWidth:0 lets it
-                  claim whatever width the row (now full page width, not a
-                  fixed grid cell) actually has, so text wraps and truncates
-                  based on real available space instead of an arbitrary
-                  260px card width. */}
-              <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-                <p style={{ fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {r.name}
-                  {r.isVerified && <span style={{ color: T.accent, marginLeft: "0.4rem", fontSize: "0.8rem" }}>✓</span>}
-                </p>
-                {r.city && <p style={{ color: T.muted, fontSize: "0.8rem", marginTop: "0.1rem" }}>{r.city}</p>}
-                {r.description && (
-                  <p
-                    style={{
-                      color: T.muted,
-                      fontSize: "0.85rem",
-                      marginTop: "0.3rem",
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical" as const,
-                    }}
-                  >
-                    {r.description}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 10,
+                    background: r.logo ? "#fff" : T.primary,
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    fontWeight: 700,
+                    color: "#fff",
+                    fontSize: "1.2rem",
+                  }}
+                >
+                  {r.logo ? (
+                    <img src={r.logo} alt={r.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    r.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.name}
+                    {r.isVerified && <span style={{ color: T.accent, marginLeft: "0.4rem", fontSize: "0.8rem" }}>✓</span>}
                   </p>
-                )}
+                  {r.city && <p style={{ color: T.muted, fontSize: "0.8rem" }}>{r.city}</p>}
+                </div>
               </div>
+
+              {r.description && (
+                <p
+                  style={{
+                    color: T.muted,
+                    fontSize: "0.85rem",
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical" as const,
+                  }}
+                >
+                  {r.description}
+                </p>
+              )}
 
               <span
                 style={{
-                  flexShrink: 0,
+                  marginTop: "auto",
+                  alignSelf: "flex-start",
                   background: T.primary,
                   color: "#fff",
-                  padding: "0.5rem 1.1rem",
+                  padding: "0.4rem 0.9rem",
                   borderRadius: 8,
                   fontSize: "0.8rem",
                   fontWeight: 600,
-                  whiteSpace: "nowrap",
                 }}
               >
                 View Menu →
