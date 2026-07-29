@@ -4,8 +4,9 @@ import { useState } from "react";
  * RestaurantLogo
  * ---------------------------------------------------------------------------
  * Shared logo component used by every restaurant menu template (MenuTemplate,
- * CheeziousMenu, and any future templates) so logos behave identically
- * everywhere instead of each template reimplementing its own version.
+ * CheeziousMenu, and any future templates) — and, now, by RestaurantListPage
+ * as well — so logos behave identically everywhere instead of each place
+ * reimplementing its own version.
  *
  * Renders the logo image as-is — transparent background, no cropping, no
  * circular mask — scaled down to a small fixed height with its natural
@@ -26,7 +27,8 @@ export function RestaurantLogo({
   name,
   size = 40,
 }: {
-  logo: string;
+  /** Nullable since some callers (e.g. RestaurantListPage) source this straight from API data where a restaurant may not have a logo set yet. */
+  logo: string | null;
   name: string;
   /** Fixed height of the logo, in pixels. Width scales automatically to preserve its natural aspect ratio. Defaults to 40 (small, corner-badge sized). */
   size?: number;
@@ -37,7 +39,7 @@ export function RestaurantLogo({
   if (showImage) {
     return (
       <img
-        src={logo}
+        src={logo!}
         alt={name}
         onError={() => setImgFailed(true)}
         style={{

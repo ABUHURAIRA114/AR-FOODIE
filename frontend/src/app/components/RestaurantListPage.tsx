@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { T } from "./tokens.mts";
+import { RestaurantLogo } from "./RestaurantLogo";
 
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
 
@@ -106,28 +107,11 @@ export function RestaurantListPage() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
-                <div
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 10,
-                    background: r.logo ? "#fff" : T.primary,
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                    fontWeight: 700,
-                    color: "#fff",
-                    fontSize: "1.2rem",
-                  }}
-                >
-                  {r.logo ? (
-                    <img src={r.logo} alt={r.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    r.name.charAt(0).toUpperCase()
-                  )}
-                </div>
+                {/* Same shared logo component used by the menu templates:
+                    renders the logo at its natural aspect ratio (no forced
+                    square crop), or falls back to the restaurant's name as
+                    text if there's no logo or the image fails to load. */}
+                <RestaurantLogo logo={r.logo} name={r.name} size={52} />
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.name}
