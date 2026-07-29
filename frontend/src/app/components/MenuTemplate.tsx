@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { useNavigate } from "react-router";
 import { RestaurantLogo } from "./RestaurantLogo";
+import { getContrastTextColor } from "../lib/colorContrast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,10 @@ function DishCard({ dish, onShowAR, dark, primaryColor }: {
   const text     = dark ? "#f0f0f0" : "#1a1a1a";
   const sub      = dark ? "#999"    : "#888";
   const btnBg    = dish.arModelUrl ? primaryColor : (dark ? "#2a2a2a" : "#f5f5f5");
-  const btnColor = dish.arModelUrl ? "#000"       : (dark ? "#666"    : "#aaa");
+  // Restaurants pick their own primaryColor, so it can be light or dark —
+  // pick the more readable text color for whatever they chose instead of
+  // assuming it's always bright enough for black text.
+  const btnColor = dish.arModelUrl ? getContrastTextColor(primaryColor, "#1a1a1a", "#fff") : (dark ? "#666" : "#aaa");
   const btnBorder= dish.arModelUrl ? primaryColor : (dark ? "#333"    : "#e0e0e0");
 
   return (
@@ -266,7 +270,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
         <div className="nav-desktop" style={{ width: "100%", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
           {/* Restaurant logo — small circular badge, top-left corner */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={50} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={58} />
 
           {/* Search */}
           <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
@@ -311,7 +315,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
           <div style={{ flex: 1 }} />
 
           {/* Restaurant logo — centered in narrow view */}
-          <RestaurantLogo logo={logo} name={restaurantName} size={38} />
+          <RestaurantLogo logo={logo} name={restaurantName} size={44} />
 
           {/* Right spacer balances the hamburger on the left, search button right-aligned within it */}
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
