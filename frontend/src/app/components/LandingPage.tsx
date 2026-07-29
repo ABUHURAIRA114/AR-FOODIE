@@ -841,7 +841,7 @@ const plans = [
     price: "Rs 24,950",
     per: "/ Month",
     setupFee: "Rs 20,000 one-time setup",
-    dishLimit: "25 to 35+ Active AR Food Models",
+    dishLimit: "25 to 40 Active AR Food Models",
     features: [
       "Everything in Standard, plus:",
       "3 Free Dish Refreshes every month",
