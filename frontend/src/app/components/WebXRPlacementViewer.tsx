@@ -38,8 +38,12 @@ import { T } from "./tokens.mts";
  *   5. After placement, the user can also press-and-drag on the surface to
  *      slide the model around continuously, using a transient-input hit
  *      test tied to the active touch point (see onSelectStart/onSelectEnd
- *      and the drag block in the animation loop below). The reticle follows
- *      along underneath it since it's pinned to the model's position.
+ *      and the drag block in the animation loop below). The model SNAPS
+ *      directly to that touch point's hit-test result every frame — it
+ *      does not preserve wherever on the model you first grabbed it, so
+ *      the model always sits exactly under the finger for the whole drag.
+ *      The reticle follows along underneath it since it's pinned to the
+ *      model's position.
  *   6. Model scale is fixed: it's computed once when the GLB finishes
  *      loading (normalized to a real-world target size, then multiplied by
  *      the `modelScale` prop) and never changes afterward — there is no
@@ -58,6 +62,11 @@ import { T } from "./tokens.mts";
  *      once a second finger actually lands and a model exists, so
  *      single-finger taps/drags keep working exactly as before, routed
  *      through the normal WebXR 'select'/transient-hit-test flow untouched.
+ *      Position stays locked for the entire twist (no drag applies while
+ *      rotating), AND for a further 1 second after the second finger lifts
+ *      — a fresh single-finger touch landing in that window won't arm a
+ *      drag, so the tail end of a twist gesture can never be misread as an
+ *      accidental nudge of the model's position.
  *   8. Surface detection now has THREE layers, tried in order each frame
  *      until one succeeds, so the reticle/placement can go live as early as
  *      possible instead of waiting on the slowest signal:
@@ -366,16 +375,13 @@ export function WebXRPlacementViewer({
     // knows to skip its own re-placement logic instead of jumping the model
     // to the current hit-test result right after a drag.
     //
-    // dragOffset preserves wherever ON the model you first grabbed it —
-    // matching Scene Viewer's drag feel, where the model moves relative to
-    // your finger rather than re-centering itself under your finger the
-    // instant you start dragging. It's computed once, on the first frame of
-    // a drag, as (model position at grab time) − (hit-test position at grab
-    // time), then re-applied every frame: model position = current hit-test
-    // position + that same offset.
+    // The model SNAPS directly to the current touch point's hit-test result
+    // every frame — no offset is preserved from wherever it was first
+    // grabbed, so the model always sits exactly under the finger for the
+    // duration of the drag (this is the intentional "snap to finger"
+    // behavior, replacing an earlier grabbed-offset approach).
     let draggingInputSource: XRInputSource | null = null;
     let dragOccurred = false;
-    let dragOffset: THREE.Vector3 | null = null;
     // Reused each time a select/selectstart fires, to check whether the tap
     // actually landed on the placed model before arming a drag — without
     // this, any tap anywhere on screen would grab the model and snap it to
@@ -393,6 +399,13 @@ export function WebXRPlacementViewer({
     // untouched.
     let rotateStartAngle: number | null = null;
     let rotateStartRotationY = 0;
+    // Timestamp (performance.now()) up to which dragging/placement should
+    // stay locked out after a twist gesture ends — set whenever the second
+    // finger lifts, so a finger landing right at the tail end of a twist
+    // can't be misread as the start of a drag/tap. Cleared implicitly once
+    // performance.now() passes it.
+    let rotateLockUntil = 0;
+    const ROTATE_LOCK_MS = 1000;
 
     // Angle (radians) of the line connecting the two touch points, in
     // screen space. Tracking the CHANGE in this angle — rather than the
@@ -418,7 +431,6 @@ export function WebXRPlacementViewer({
         // touch before the second one lands), so cancel it here rather
         // than letting both a slide and a rotate apply simultaneously.
         draggingInputSource = null;
-        dragOffset = null;
       }
     }
 
@@ -438,6 +450,13 @@ export function WebXRPlacementViewer({
 
     function onOverlayTouchEnd(e: TouchEvent) {
       if (e.touches.length < 2) {
+        if (rotateStartAngle !== null) {
+          // A twist gesture just ended — hold the drag/placement lock for
+          // a further ROTATE_LOCK_MS so a finger lifting or re-landing
+          // right at the tail end of the twist can't be misread as a new
+          // drag starting.
+          rotateLockUntil = performance.now() + ROTATE_LOCK_MS;
+        }
         rotateStartAngle = null;
       }
     }
@@ -570,9 +589,10 @@ export function WebXRPlacementViewer({
         return;
       }
 
-      // A two-finger rotate was just in progress on this same gesture —
-      // don't also reinterpret its release as a placement tap.
-      if (rotateStartAngle !== null) {
+      // A two-finger rotate was just in progress on this same gesture, or
+      // its post-rotate lock window is still active — don't reinterpret
+      // its release as a placement tap.
+      if (rotateStartAngle !== null || performance.now() < rotateLockUntil) {
         return;
       }
 
@@ -606,13 +626,15 @@ export function WebXRPlacementViewer({
     // arms dragging — we raycast the tap's own targetRaySpace pose against
     // the placed model first, and only start the drag if it actually hits.
     // Without that check, any tap anywhere would grab the model and snap it
-    // to that touch point, which is the "snapping to fingers" behavior this
-    // replaces.
+    // to that touch point, which is exactly the desired "snap to finger"
+    // behavior once a genuine drag is confirmed — but only for taps that
+    // actually land on the model itself.
     function onSelectStart(event: any) {
       if (!placedModel) return;
-      // Position is locked while a twist-rotate is active — don't also
-      // arm a drag off whichever finger this select-start belongs to.
-      if (rotateStartAngle !== null) return;
+      // Position is locked while a twist-rotate is active, and for a beat
+      // afterward — don't arm a drag off whichever finger this
+      // select-start belongs to during that window.
+      if (rotateStartAngle !== null || performance.now() < rotateLockUntil) return;
       const frame = event.frame as XRFrame | undefined;
       if (!frame) return;
       const pose = frame.getPose(event.inputSource.targetRaySpace, localSpace);
@@ -634,7 +656,6 @@ export function WebXRPlacementViewer({
     function onSelectEnd(event: any) {
       if (draggingInputSource === event.inputSource) {
         draggingInputSource = null;
-        dragOffset = null;
       }
     }
 
@@ -758,16 +779,18 @@ export function WebXRPlacementViewer({
         }
       }
 
-      // Drag-to-move: while a press is active over the placed model, follow
-      // that specific touch point's own hit test each frame so the model
-      // slides along the surface under the finger — keeping the offset
-      // between where it was first grabbed and the hit-test position, so it
-      // doesn't jump to re-center under the finger the moment the drag
-      // starts (matching Scene Viewer's drag feel).
-      // rotateStartAngle === null: only one gesture moves the model at a
-      // time, so a drag never advances the model's position while a
-      // twist-rotate is active (position is locked for that duration).
-      if (draggingInputSource && placedModel && transientHitTestSource && rotateStartAngle === null) {
+      // Drag-to-move: while a press is active over the placed model (and
+      // no twist-rotate is active or in its post-rotate lock window),
+      // follow that specific touch point's own hit test each frame,
+      // snapping the model directly onto the current hit-test position —
+      // it always sits exactly under the finger for the whole drag.
+      if (
+        draggingInputSource &&
+        placedModel &&
+        transientHitTestSource &&
+        rotateStartAngle === null &&
+        performance.now() >= rotateLockUntil
+      ) {
         const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
         for (const result of transientResults) {
           if (result.inputSource === draggingInputSource && result.results.length > 0) {
@@ -776,13 +799,7 @@ export function WebXRPlacementViewer({
               const hitPosition = new THREE.Vector3().setFromMatrixPosition(
                 new THREE.Matrix4().fromArray(pose.transform.matrix)
               );
-              if (!dragOffset) {
-                // First frame of this drag — capture how far the model's
-                // position currently is from this hit-test point, and hold
-                // that offset for the rest of the drag.
-                dragOffset = placedModel.position.clone().sub(hitPosition);
-              }
-              placedModel.position.copy(hitPosition).add(dragOffset);
+              placedModel.position.copy(hitPosition);
               dragOccurred = true;
             }
           }

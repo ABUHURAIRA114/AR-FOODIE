@@ -15,6 +15,12 @@ import { T } from "./tokens.mts";
  * not an extension of it — so it's a separate component, switched in by the
  * parent based on AR capability detection.
  *
+ * Rotation: a two-finger TWIST anywhere on the tracking view spins the model
+ * sideways — around the vertical axis standing up out of the marker image —
+ * the same "turn a dial" gesture used in the WebXR path. It never tilts the
+ * model up/down or side-to-side; only the spin around that single vertical
+ * axis is exposed. See onContainerTouchStart/Move/End below.
+ *
  * Requires:
  *  - `npm install mind-ar three`
  *  - A compiled `.mind` target file generated from a marker image, via
@@ -42,6 +48,10 @@ type TrackingPhase = "loading" | "ready" | "scanning" | "found" | "camera-denied
 export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, modelScale = 1 }: ImageTrackingViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
+  // Holds the spin group (see init() below) once the model has finished
+  // loading, so the touch handlers — set up independently of the async
+  // load — can rotate it as soon as it exists.
+  const spinGroupRef = useRef<THREE.Group | null>(null);
   const [phase, setPhase] = useState<TrackingPhase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -122,7 +132,9 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         // Z = perpendicular to the image, pointing toward the camera / away
         // from the marker surface (confirmed by MindAR's own examples, which
         // overlay a flat plane directly on anchor.group with zero rotation
-        // to represent the image itself).
+        // to represent the image itself). Z is therefore the "vertical" axis
+        // a dish would stand up out of the marker along — the axis a sideways
+        // spin should turn around.
         //
         // A glTF model's native up axis (Y) therefore lines up with the
         // anchor's *in-plane* Y by default — not the axis actually
@@ -132,6 +144,15 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         // the anchor's Z axis, so it lies flat with its top facing the
         // camera, the way a real dish would sit on a table the marker is
         // printed on.
+        //
+        // Because that corrective 90° tilt is baked directly into the
+        // model's own rotation.x, the model's local Y and Z axes no longer
+        // match the anchor's — so the sideways-spin gesture below rotates a
+        // separate parent "spin group" around the anchor's own Z axis
+        // instead of touching the model's rotation directly. That keeps the
+        // spin strictly to "turning like a dial on the table" and makes it
+        // impossible for the gesture to accidentally tilt the model
+        // up/down, no matter how the model itself is oriented inside it.
         model.rotation.x = Math.PI / 2;
 
         // Normalise by the model's actual bounding box instead of a blind
@@ -167,7 +188,17 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         model.position.y -= center.y;
         model.position.z -= box.min.z;
 
-        anchor.group.add(model);
+        // Spin group: sits between the anchor and the model, and is the
+        // ONLY thing the twist gesture ever rotates (around its local Z,
+        // which is the anchor's own Z — the axis perpendicular to the
+        // marker image). The model keeps its corrective rotation.x baked in
+        // underneath, untouched by the gesture, so twisting can only ever
+        // spin the dish like a lazy susan on top of the marker — never tilt
+        // it up/down or side-to-side.
+        const spinGroup = new THREE.Group();
+        spinGroup.add(model);
+        anchor.group.add(spinGroup);
+        spinGroupRef.current = spinGroup;
 
         // Basic lighting — image-tracked AR has no real-world light estimation,
         // so a couple of simple lights keep the model from looking flat/black.
@@ -232,8 +263,77 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
       renderer?.setAnimationLoop(null);
       mindarRef.current?.stop?.();
       mindarRef.current?.renderer?.dispose?.();
+      spinGroupRef.current = null;
     };
   }, [glbUrl, mindTargetUrl]);
+
+  // --- Two-finger TWIST rotate ---
+  // Rotates the model sideways only — spinning around the single vertical
+  // axis standing up out of the marker image, the way you'd spin a plate on
+  // a table. It never tilts the model up/down or side-to-side; those axes
+  // are simply never touched by this gesture.
+  //
+  // Set up independently of the async model load in init() above: these
+  // listeners attach to the container div as soon as it mounts, and each
+  // handler just checks spinGroupRef.current before doing anything, so
+  // touches before the model is ready are harmlessly ignored.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let rotateStartAngle: number | null = null;
+    let rotateStartRotationZ = 0;
+
+    // Angle (radians) of the line connecting the two touch points, in
+    // screen space — tracking the CHANGE in this angle (rather than the
+    // midpoint's movement) is what makes this a "twist": rotating your two
+    // fingers relative to each other, like turning a dial, is what spins
+    // the model. Matches the same gesture used in WebXRPlacementViewer.
+    function twoTouchAngle(touches: TouchList): number {
+      const dx = touches[1].clientX - touches[0].clientX;
+      const dy = touches[1].clientY - touches[0].clientY;
+      return Math.atan2(dy, dx);
+    }
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length === 2 && spinGroupRef.current) {
+        e.preventDefault();
+        rotateStartAngle = twoTouchAngle(e.touches);
+        rotateStartRotationZ = spinGroupRef.current.rotation.z;
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (rotateStartAngle !== null && e.touches.length === 2 && spinGroupRef.current) {
+        e.preventDefault();
+        const currentAngle = twoTouchAngle(e.touches);
+        // Sign flip for the same reason as the WebXR path: a clockwise
+        // twist, as seen face-on looking at the marker, should turn the
+        // model in the negative-angle direction under Three.js's
+        // right-handed convention for rotation about the anchor's Z axis.
+        const deltaAngle = -(currentAngle - rotateStartAngle);
+        spinGroupRef.current.rotation.z = rotateStartRotationZ + deltaAngle;
+      }
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (e.touches.length < 2) {
+        rotateStartAngle = null;
+      }
+    }
+
+    container.addEventListener("touchstart", onTouchStart, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd, { passive: false });
+    container.addEventListener("touchcancel", onTouchEnd, { passive: false });
+
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
 
   return (
     <div
@@ -254,7 +354,7 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         elements elsewhere in the app.
       */}
       <style>{`
-        .mindar-container { position: relative; width: 100%; height: 100%; }
+        .mindar-container { position: relative; width: 100%; height: 100%; touch-action: none; }
         .mindar-container video {
           position: absolute !important;
           top: 0 !important;
@@ -337,6 +437,14 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
           <span style={{ fontWeight: 700, color: T.accent }}>Point your camera at the menu photo</span>
           <span style={{ color: T.muted, fontSize: "0.82rem" }}>
             Hold steady and make sure it's well lit.
+          </span>
+        </div>
+      )}
+
+      {phase === "found" && (
+        <div style={{ ...coachStyle, top: "auto", bottom: "10%" }}>
+          <span style={{ color: T.muted, fontSize: "0.82rem" }}>
+            Twist two fingers to spin the dish.
           </span>
         </div>
       )}
