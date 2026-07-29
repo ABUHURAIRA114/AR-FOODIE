@@ -98,8 +98,16 @@ export function RestaurantListPage() {
                 text-align: center;
               }
             }
+            .restaurant-list a {
+              border-left: 4px solid var(--rcolor) !important;
+            }
+            .restaurant-list a:hover {
+              border-color: var(--rcolor) !important;
+            }
           `}</style>
-          {filtered.map(r => (
+          {filtered.map(r => {
+            const rColor = r.primaryColor || T.primary;
+            return (
             <Link
               key={r.id}
               to={`/menu/${r.slug}`}
@@ -117,6 +125,7 @@ export function RestaurantListPage() {
                 transition: "border-color 0.15s ease",
                 width: "100%",
                 boxSizing: "border-box",
+                ["--rcolor" as any]: rColor,
               }}
             >
               {/* Same shared logo component used by the menu templates:
@@ -156,7 +165,7 @@ export function RestaurantListPage() {
               <span
                 style={{
                   flexShrink: 0,
-                  background: T.primary,
+                  background: rColor,
                   color: "#fff",
                   padding: "0.5rem 1.1rem",
                   borderRadius: 8,
@@ -168,7 +177,8 @@ export function RestaurantListPage() {
                 View Menu →
               </span>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
