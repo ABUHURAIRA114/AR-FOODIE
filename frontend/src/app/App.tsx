@@ -7,7 +7,6 @@ import { UserLoginPage } from "./components/UserLoginPage";
 import { UserRegisterPage } from "./components/UserRegisterPage";
 import { SceneViewer } from "./components/SceneViewer";
 import { PrivacyPolicyPage } from "./components/PrivacyPolicyPage";
-import  CheziousARMenu  from "./components/CheeziousMenu";
 import RestaurantMenuPage from "./components/RestaurantMenuPage";
 import { RestaurantListPage } from "./components/RestaurantListPage";
 // import { TermsPage } from "./components/TermsPage";
@@ -25,7 +24,6 @@ export default function App() {
         <Route path="/user-register" element={<UserRegisterPage />} />
         <Route path= "/user-logout" element={<UserLoginPage />} />
         <Route path= "/privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path="/menu/cheezious" element={<CheziousARMenu />} />
         <Route path="/restaurants" element={<RestaurantListPage />} />
         <Route path="/menu/:slug" element={<RestaurantMenuPage />} />
 
