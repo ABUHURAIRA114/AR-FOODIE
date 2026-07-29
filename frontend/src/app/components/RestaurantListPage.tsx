@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { T } from "./tokens.mts";
 import { RestaurantLogo } from "./RestaurantLogo";
+import { getContrastTextColor } from "../lib/colorContrast";
 
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
 
@@ -98,34 +99,39 @@ export function RestaurantListPage() {
                 text-align: center;
               }
             }
-            .restaurant-list a {
-              border-left: 4px solid var(--rcolor) !important;
-            }
             .restaurant-list a:hover {
-              border-color: var(--rcolor) !important;
+              filter: brightness(1.06);
             }
           `}</style>
           {filtered.map(r => {
-            const rColor = r.primaryColor || T.primary;
+            // The whole tab is tinted with the restaurant's own primary
+            // color, and the "View Menu" pill uses their header color —
+            // both are arbitrary per-restaurant values, so text sitting on
+            // top of either one picks black or white for readability
+            // depending on how bright that color actually is.
+            const cardBg = r.primaryColor || T.primary;
+            const btnBg = r.headerBg || T.bg3;
+            const cardText = getContrastTextColor(cardBg, "#1a1a1a", "#ffffff");
+            const cardMuted = cardText === "#1a1a1a" ? "rgba(26,26,26,0.65)" : "rgba(255,255,255,0.75)";
+            const btnText = getContrastTextColor(btnBg, "#1a1a1a", "#ffffff");
             return (
             <Link
               key={r.id}
               to={`/menu/${r.slug}`}
               style={{
-                background: T.bg3,
+                background: cardBg,
                 border: `1px solid ${T.border}`,
                 borderRadius: 12,
                 padding: "1rem 1.2rem",
                 textDecoration: "none",
-                color: T.text,
+                color: cardText,
                 display: "flex",
                 flexWrap: "wrap",
                 alignItems: "center",
                 gap: "1rem",
-                transition: "border-color 0.15s ease",
+                transition: "filter 0.15s ease",
                 width: "100%",
                 boxSizing: "border-box",
-                ["--rcolor" as any]: rColor,
               }}
             >
               {/* Same shared logo component used by the menu templates:
@@ -140,15 +146,15 @@ export function RestaurantListPage() {
                   based on real available space instead of an arbitrary
                   260px card width. */}
               <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-                <p style={{ fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <p style={{ fontWeight: 700, color: cardText, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {r.name}
-                  {r.isVerified && <span style={{ color: T.accent, marginLeft: "0.4rem", fontSize: "0.8rem" }}>✓</span>}
+                  {r.isVerified && <span style={{ color: cardText, marginLeft: "0.4rem", fontSize: "0.8rem" }}>✓</span>}
                 </p>
-                {r.city && <p style={{ color: T.muted, fontSize: "0.8rem", marginTop: "0.1rem" }}>{r.city}</p>}
+                {r.city && <p style={{ color: cardMuted, fontSize: "0.8rem", marginTop: "0.1rem" }}>{r.city}</p>}
                 {r.description && (
                   <p
                     style={{
-                      color: T.muted,
+                      color: cardMuted,
                       fontSize: "0.85rem",
                       marginTop: "0.3rem",
                       overflow: "hidden",
@@ -165,8 +171,8 @@ export function RestaurantListPage() {
               <span
                 style={{
                   flexShrink: 0,
-                  background: rColor,
-                  color: "#fff",
+                  background: btnBg,
+                  color: btnText,
                   padding: "0.5rem 1.1rem",
                   borderRadius: 8,
                   fontSize: "0.8rem",
