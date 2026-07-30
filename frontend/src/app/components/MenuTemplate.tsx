@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { useNavigate } from "react-router";
 import { RestaurantLogo } from "./RestaurantLogo";
+import { getContrastTextColor } from "../lib/colorContrast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,10 @@ function DishCard({ dish, onShowAR, dark, primaryColor }: {
   const text     = dark ? "#f0f0f0" : "#1a1a1a";
   const sub      = dark ? "#999"    : "#888";
   const btnBg    = dish.arModelUrl ? primaryColor : (dark ? "#2a2a2a" : "#f5f5f5");
-  const btnColor = dish.arModelUrl ? "#000"       : (dark ? "#666"    : "#aaa");
+  // Restaurants pick their own primaryColor, so it can be light or dark —
+  // pick the more readable text color for whatever they chose instead of
+  // assuming it's always bright enough for black text.
+  const btnColor = dish.arModelUrl ? getContrastTextColor(primaryColor, "#1a1a1a", "#fff") : (dark ? "#666" : "#aaa");
   const btnBorder= dish.arModelUrl ? primaryColor : (dark ? "#333"    : "#e0e0e0");
 
   return (
@@ -72,7 +76,7 @@ function DishCard({ dish, onShowAR, dark, primaryColor }: {
       <div style={{ position: "relative", background: imgBg, padding: "1.2rem 1.2rem 0.5rem", textAlign: "center" }}>
         <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem", color: "#e8472a", fontSize: "1.1rem", cursor: "pointer" }}>♡</div>
         {dish.arModelUrl && (
-          <span style={{ position: "absolute", top: "0.75rem", left: "0.75rem", background: primaryColor, color: "#000", fontSize: "0.6rem", fontWeight: 800, padding: "0.2rem 0.5rem", borderRadius: 20, letterSpacing: "0.05em" }}>AR</span>
+          <span style={{ position: "absolute", top: "0.75rem", left: "0.75rem", background: primaryColor, color: getContrastTextColor(primaryColor, "#1a1a1a", "#fff"), fontSize: "0.6rem", fontWeight: 800, padding: "0.2rem 0.5rem", borderRadius: 20, letterSpacing: "0.05em" }}>AR</span>
         )}
         <img
           src={dish.image} alt={dish.name}
@@ -145,7 +149,7 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
               style={{
                 flexShrink: 0,
                 background: active === cat.id ? primaryColor : "transparent",
-                color: active === cat.id ? "#000" : (dark ? "#ccc" : "#1a1a1a"),
+                color: active === cat.id ? getContrastTextColor(primaryColor, "#1a1a1a", "#fff") : (dark ? "#ccc" : "#1a1a1a"),
                 border: "none", borderRadius: active === cat.id ? 8 : 0,
                 padding: "0.85rem 1.3rem", fontWeight: 700, fontSize: "0.95rem",
                 cursor: "pointer", fontFamily: "'Poppins',sans-serif",
