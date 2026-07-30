@@ -74,7 +74,6 @@ function DishCard({ dish, onShowAR, dark, primaryColor }: {
     >
       {/* Image area */}
       <div style={{ position: "relative", background: imgBg, padding: "1.2rem 1.2rem 0.5rem", textAlign: "center" }}>
-        <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem", color: "#e8472a", fontSize: "1.1rem", cursor: "pointer" }}>♡</div>
         {dish.arModelUrl && (
           <span style={{ position: "absolute", top: "0.75rem", left: "0.75rem", background: primaryColor, color: getContrastTextColor(primaryColor, "#1a1a1a", "#fff"), fontSize: "0.6rem", fontWeight: 800, padding: "0.2rem 0.5rem", borderRadius: 20, letterSpacing: "0.05em" }}>AR</span>
         )}
@@ -413,7 +412,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
       {/* ── Footer ── */}
       <footer style={{ background: "#1a2e1a", color: "rgba(255,255,255,0.45)", textAlign: "center", padding: "1.1rem", fontSize: "0.78rem", fontFamily: "'Poppins',sans-serif" }}>
         AR Menu powered by{" "}
-        <a href="https://dinenics.com" style={{ color: primaryColor, textDecoration: "none", fontWeight: 700 }}>Dinenics.com</a>
+        <a href="https://dinenics.com" style={{ color: "#e0954a", textDecoration: "none", fontWeight: 700 }}>Dinenics.com</a>
       </footer>
 
       {/* ── Global styles ── */}
