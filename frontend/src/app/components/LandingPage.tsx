@@ -8,9 +8,6 @@ import cashAsset from "../../assets/Cash.webp";
 import qrAsset from "../../assets/QR.webp";
 import { T } from "./tokens.mts";
 
-<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"></link>
-
-
 // ── Tiny helpers ───────────────────────────────────────────────────
 function AccentText({ children }: { children: React.ReactNode }) {
   return (
@@ -1317,6 +1314,7 @@ export function LandingPage() {
 
   return (
     <div style={{ background: T.bg, color: T.text, fontFamily: "'Segoe UI',system-ui,-apple-system,sans-serif", overflowX: "hidden" }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" />
       <Nav />
       <Hero />
       <HowItWorks />
