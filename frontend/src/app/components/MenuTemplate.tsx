@@ -13,6 +13,7 @@ import React from "react";
 import { useNavigate } from "react-router";
 import { RestaurantLogo } from "./RestaurantLogo";
 import { getContrastTextColor } from "../lib/colorContrast";
+import dinenicsLogo from "../../assets/logo.webp";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
   };
 
   return (
-    <div style={{ background: barBg, borderBottom: `1px solid ${border}`, position: "sticky", top: 68, zIndex: 90 }}>
+    <div style={{ background: barBg, borderBottom: `1px solid ${border}`, position: "sticky", top: 76, zIndex: 90, boxShadow: dark ? "0 2px 6px rgba(0,0,0,0.35)" : "0 2px 6px rgba(0,0,0,0.08)" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", display: "flex", alignItems: "center" }}>
         <button onClick={() => scroll("left")} style={{ ...arrowStyle, left: 0 }}>‹</button>
         <div ref={scrollRef} style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none", padding: "0 40px", flex: 1 }}>
@@ -168,6 +169,43 @@ function CategoryBar({ categories, active, onSelect, dark, primaryColor }: {
 // RestaurantLogo now lives in ./RestaurantLogo.tsx, shared with every other
 // menu template so logo fallback/error handling behaves identically
 // everywhere instead of diverging per-template.
+
+// ─── Dinenics brand mark ────────────────────────────────────────────────────
+// Same rounded logo badge + "Dinenics" script wordmark used in the landing
+// page nav (LandingPage.tsx's DinenicsBrandLogo), just resizable so it can
+// drop into the menu header (small) and the mobile sidebar (slightly bigger)
+// without looking like a completely different logo treatment.
+function DinenicsBadge({ boxSize = 36, fontSize = "1.1rem" }: { boxSize?: number; fontSize?: string }) {
+  return (
+    <a
+      href="https://dinenics.com"
+      style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
+    >
+      <div style={{
+        background: "#0f1e23",
+        borderRadius: boxSize * 0.26,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(245,184,0,0.15)",
+        border: "1px solid rgba(255,255,255,0.03)",
+        width: boxSize,
+        height: boxSize,
+        overflow: "hidden",
+        flexShrink: 0,
+      }}>
+        <img
+          src={dinenicsLogo}
+          alt="Dinenics Logo"
+          style={{ width: "130%", height: "130%", objectFit: "contain", display: "block" }}
+        />
+      </div>
+      <span style={{ fontFamily: "'Pacifico', cursive", fontSize, color: "#f5b800", letterSpacing: "0.01em", lineHeight: 1 }}>
+        Dinenics
+      </span>
+    </a>
+  );
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuTemplate({ config, categories, dishes }: MenuTemplateProps) {
@@ -256,6 +294,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
     <div style={{ background: pageBg, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Poppins',sans-serif" }}>
 
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" />
 
       {/* ── Navbar ── */}
       <header style={{
@@ -295,7 +334,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
 
             {/* Dinenics branding */}
             <div style={{ borderLeft: dark ? "1px solid #333" : "1px solid #ddd", paddingLeft: "0.6rem", flexShrink: 0 }}>
-              <img src="/logos/dinenics.png" alt="Dinenics" height={40} style={{ objectFit: "contain", display: "block", maxWidth: 190 }} />
+              <DinenicsBadge boxSize={36} fontSize="1.05rem" />
             </div>
           </div>
         </div>
@@ -347,7 +386,7 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
 
             {/* Dinenics branding in sidebar */}
             <div style={{ textAlign: "center", paddingBottom: "1rem", borderBottom: `1px solid ${dark ? "#333" : "#eee"}` }}>
-              <img src="/logos/dinenics.png" alt="Dinenics" height={36} style={{ objectFit: "contain" }} />
+              <div style={{ display: "inline-flex" }}><DinenicsBadge boxSize={44} fontSize="1.3rem" /></div>
               <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem", color: dark ? "#888" : "#999", fontFamily: "'Poppins',sans-serif" }}>AR Menu powered by Dinenics</p>
             </div>
 
@@ -366,6 +405,11 @@ export default function MenuTemplate({ config, categories, dishes }: MenuTemplat
           </div>
         </div>
       )}
+
+      {/* Small gap so the category bar visually separates from the header
+          even when a restaurant's headerBg and primaryColor are close in
+          tone — otherwise the two bars read as one merged block. */}
+      <div style={{ height: 8, background: pageBg }} />
 
       {/* ── Category Bar ── */}
       <CategoryBar
