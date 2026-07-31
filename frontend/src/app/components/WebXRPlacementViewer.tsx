@@ -117,6 +117,31 @@ import { T } from "./tokens.mts";
  *  - depth-sensing is optional and device-dependent (ARCore Depth API
  *    hardware/software support varies by phone) — feature-detected at
  *    runtime, so its absence never breaks placement or the reticle.
+ *
+ * Persistent anchors (pre-scanned placement):
+ *  - When the browser grants the optional 'anchors' feature AND exposes
+ *    session.restorePersistentAnchor (the WebXR Anchors module's
+ *    persistence extension), a successful tap-to-place also asks the
+ *    platform to persist that anchor and stores the returned UUID in
+ *    localStorage, keyed by `anchorKey` (typically the dish/model id).
+ *  - On the NEXT visit to the same model, if a stored UUID exists, we try
+ *    session.restorePersistentAnchor(uuid) before showing the reticle. If
+ *    it resolves, the model is placed automatically from that anchor's
+ *    live pose — no re-scan, no re-tap. Position is re-read from the
+ *    anchor every frame (not just set once), so it self-corrects if the
+ *    platform refines its understanding of that spot.
+ *  - If there's no stored UUID, the browser doesn't support persistence,
+ *    or the restore call rejects (stale handle, different physical
+ *    location, cleared AR data, etc.), this silently falls straight
+ *    through to the normal live hit-test scanning flow described above —
+ *    a pre-scanned placement is only ever a shortcut on top of that flow,
+ *    never a replacement for it.
+ *  - Support for this specific persistence extension is currently narrow
+ *    (most WebXR-capable browsers support the base 'anchors' feature for
+ *    session-only anchors, but not everyone ships
+ *    restorePersistentAnchor/requestPersistentHandle yet) — that's exactly
+ *    why every step here is feature-detected and wrapped so its absence
+ *    just means "always re-scan," not a broken session.
  */
 
 interface WebXRPlacementViewerProps {
@@ -127,6 +152,40 @@ interface WebXRPlacementViewerProps {
   onFallbackToSceneViewer?: () => void;
   /** Uniform scale applied to the loaded model. Fixed for the whole session — defaults to 1 (real-world scale). */
   modelScale?: number;
+  /**
+   * Stable identifier for what's being placed (e.g. the dish/model id).
+   * Used as the localStorage key for that model's persisted WebXR anchor,
+   * so returning to the SAME dish restores its remembered placement while
+   * a different dish starts a fresh scan. If omitted, persistence is
+   * skipped entirely and every session scans live, same as before.
+   */
+  anchorKey?: string;
+}
+
+const ANCHOR_STORAGE_PREFIX = "dinenics-xr-anchor:";
+
+function getStoredAnchorUuid(anchorKey: string): string | null {
+  try {
+    return localStorage.getItem(ANCHOR_STORAGE_PREFIX + anchorKey);
+  } catch {
+    return null; // localStorage unavailable (private mode, etc.) — just skip persistence
+  }
+}
+
+function setStoredAnchorUuid(anchorKey: string, uuid: string) {
+  try {
+    localStorage.setItem(ANCHOR_STORAGE_PREFIX + anchorKey, uuid);
+  } catch {
+    // Ignore — worst case, next visit just re-scans instead of restoring.
+  }
+}
+
+function clearStoredAnchorUuid(anchorKey: string) {
+  try {
+    localStorage.removeItem(ANCHOR_STORAGE_PREFIX + anchorKey);
+  } catch {
+    // no-op
+  }
 }
 
 type SessionPhase =
@@ -178,6 +237,7 @@ export function WebXRPlacementViewer({
   onExit,
   onFallbackToSceneViewer,
   modelScale = 1,
+  anchorKey,
 }: WebXRPlacementViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -185,6 +245,11 @@ export function WebXRPlacementViewer({
   const [phase, setPhase] = useState<SessionPhase>("checking-support");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [domOverlaySupported, setDomOverlaySupported] = useState(true);
+  // True while the placed model is sitting on a RESTORED persistent anchor
+  // from a previous visit, rather than one just placed by a fresh tap —
+  // purely cosmetic (drives the "remembered from last time" coaching text
+  // below), cleared the moment the user taps to re-place.
+  const [restoredFromMemory, setRestoredFromMemory] = useState(false);
 
   // --- Feature-detect WebXR + hit-test support, then go straight into AR ---
   // No intermediate "Start AR" tap here: the click that navigated the user
@@ -235,7 +300,7 @@ export function WebXRPlacementViewer({
         // that support ARCore's Depth API — if the device can't grant it,
         // the session still starts fine and depth simply stays unavailable
         // (guarded at every use site below via feature detection).
-        optionalFeatures: ["dom-overlay", "plane-detection", "depth-sensing"],
+        optionalFeatures: ["dom-overlay", "plane-detection", "depth-sensing", "anchors"],
         depthSensing: {
           usagePreference: ["cpu-optimized", "gpu-optimized"],
           dataFormatPreference: ["luminance-alpha", "float32"],
@@ -569,6 +634,31 @@ export function WebXRPlacementViewer({
       profile: "generic-touchscreen",
     });
 
+    // --- Persistent anchors: try to restore a remembered placement ---
+    // anchorsSupported reflects the specific persistence extension, not
+    // just the base 'anchors' feature — a browser can grant 'anchors' for
+    // session-only anchors while still lacking restorePersistentAnchor.
+    const anchorsSupported = typeof (session as any).restorePersistentAnchor === "function";
+    // The currently-active anchor (restored OR newly created after a tap).
+    // Re-read every frame below to keep the model locked to it; replaced
+    // whenever the user taps to place somewhere new.
+    let activeAnchor: XRAnchor | null = null;
+
+    if (anchorsSupported && anchorKey) {
+      const storedUuid = getStoredAnchorUuid(anchorKey);
+      if (storedUuid) {
+        try {
+          activeAnchor = await (session as any).restorePersistentAnchor(storedUuid);
+        } catch {
+          // Stale handle, different physical location, AR data was reset,
+          // etc. — forget it and fall straight through to live scanning
+          // below, exactly as if nothing had ever been saved.
+          clearStoredAnchorUuid(anchorKey);
+          activeAnchor = null;
+        }
+      }
+    }
+
     setPhase("active-searching");
 
     // Reused every frame for the native + fallback hit tests, so placement
@@ -578,6 +668,12 @@ export function WebXRPlacementViewer({
     // animation loop below).
     const hitMatrix = new THREE.Matrix4();
     let hitValid = false;
+    // Only layer 1 (the native hit test) produces a real XRHitTestResult
+    // object with .createAnchor() — layers 2/3 (depth-sensing, plane
+    // raycast) only ever produce a bare matrix. Kept separately so onSelect
+    // knows whether creating a persistent anchor is even possible for
+    // THIS particular tap.
+    let nativeHitTestResult: any = null;
 
     function onSelect() {
       // A drag just ended on this same press — the model has already been
@@ -616,6 +712,43 @@ export function WebXRPlacementViewer({
       // deliberately left untouched by a re-tap/re-place.
       placedModel.position.setFromMatrixPosition(hitMatrix);
       setPhase("active-placed");
+      // A fresh tap always means "place it HERE, right now" — any anchor
+      // we were previously tracking (restored from last visit, or from an
+      // earlier tap this same session) no longer describes where the
+      // model actually is, so stop reading position from it. The block
+      // below replaces it with a brand new one if the platform supports
+      // anchors at all.
+      setRestoredFromMemory(false);
+      const staleAnchor = activeAnchor;
+      activeAnchor = null;
+      staleAnchor?.delete?.();
+
+      // Best-effort: turn this tap's hit test into a real anchor, and — if
+      // the browser supports it — persist it so a future visit to this
+      // same dish can restore it instead of re-scanning. Both steps are
+      // fire-and-forget from the tap's perspective: placement itself
+      // already happened above via hitMatrix, so a slow/failed anchor
+      // response never blocks or undoes what the user just saw happen.
+      if (anchorsSupported && nativeHitTestResult && typeof nativeHitTestResult.createAnchor === "function") {
+        nativeHitTestResult
+          .createAnchor()
+          .then((anchor: XRAnchor) => {
+            activeAnchor = anchor;
+            if (anchorKey && typeof (anchor as any).requestPersistentHandle === "function") {
+              (anchor as any)
+                .requestPersistentHandle()
+                .then((uuid: string) => setStoredAnchorUuid(anchorKey, uuid))
+                .catch(() => {
+                  // Anchor works for this session either way — persistence
+                  // just didn't take, so next visit will re-scan instead.
+                });
+            }
+          })
+          .catch(() => {
+            // Anchor creation failed — the model is still placed correctly
+            // from hitMatrix above, it just won't self-correct or persist.
+          });
+      }
 
       // eslint-disable-next-line no-console
       console.log("[WebXRPlacementViewer] Placed model at", placedModel.position, "scale", placedModel.scale);
@@ -691,6 +824,7 @@ export function WebXRPlacementViewer({
       // endSession() ourselves). Re-entering AR from here requires a fresh
       // tap, so land on "idle" rather than auto-restarting.
       setPhase("idle");
+      setRestoredFromMemory(false);
     }
     session.addEventListener("end", onSessionEnd);
 
@@ -714,6 +848,7 @@ export function WebXRPlacementViewer({
 
       // --- Layer 1: native hit test (always computed, drives placement) ---
       hitValid = false;
+      nativeHitTestResult = null;
       if (hitTestSource && viewerPose) {
         const hitTestResults = frame.getHitTestResults(hitTestSource);
         if (hitTestResults.length > 0) {
@@ -721,6 +856,7 @@ export function WebXRPlacementViewer({
           if (pose) {
             hitMatrix.fromArray(pose.transform.matrix);
             hitValid = true;
+            nativeHitTestResult = hitTestResults[0];
           }
         }
       }
@@ -802,6 +938,33 @@ export function WebXRPlacementViewer({
               placedModel.position.copy(hitPosition);
               dragOccurred = true;
             }
+          }
+        }
+      }
+
+      // --- Persistent anchor tracking ---
+      // Runs whenever we have an active anchor (restored from a previous
+      // visit, or created moments ago from this session's own tap) and
+      // nothing else is currently manipulating the model. If no model is
+      // placed yet, this IS the placement — the moment the anchor's pose
+      // resolves, the model appears with no tap required, skipping the
+      // scan/reticle phase entirely. If a model is already placed, this
+      // keeps re-reading its position from the anchor every frame so it
+      // self-corrects if the platform refines that spot over time.
+      if (activeAnchor && !draggingInputSource && rotateStartAngle === null) {
+        const anchorPose = frame.getPose((activeAnchor as any).anchorSpace, localSpace);
+        if (anchorPose) {
+          const anchorPos = new THREE.Vector3().setFromMatrixPosition(
+            new THREE.Matrix4().fromArray(anchorPose.transform.matrix)
+          );
+          if (!placedModel && modelLoaded && pendingModel) {
+            placedModel = pendingModel;
+            scene.add(placedModel);
+            placedModel.position.copy(anchorPos);
+            setPhase("active-placed");
+            setRestoredFromMemory(true);
+          } else if (placedModel) {
+            placedModel.position.copy(anchorPos);
           }
         }
       }
@@ -950,6 +1113,11 @@ export function WebXRPlacementViewer({
 
         {phase === "active-placed" && (
           <div style={{ ...coachStyle, top: "auto", bottom: "16%", pointerEvents: "none" }}>
+            {restoredFromMemory && (
+              <span style={{ fontWeight: 700, color: T.accent, fontSize: "0.82rem" }}>
+                📍 Placed from your last visit
+              </span>
+            )}
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
               Tap elsewhere to move it, drag to slide it, or twist two fingers
               to rotate it.

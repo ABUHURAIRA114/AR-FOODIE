@@ -214,6 +214,7 @@ export function SceneViewer() {
         glbUrl={scene.glb_url}
         name={scene.name}
         modelScale={scene.webxr_model_scale}
+        anchorKey={scene.id}
         onExit={() => setWebXrActive(false)}
         onFallbackToSceneViewer={() => {
           setWebXrActive(false);
