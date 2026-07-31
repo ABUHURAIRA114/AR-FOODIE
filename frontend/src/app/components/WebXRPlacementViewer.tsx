@@ -215,6 +215,36 @@ function traceRoundedSquare(path: THREE.Path | THREE.Shape, half: number, corner
   path.absarc(-h + r, -h + r, r, Math.PI, Math.PI * 1.5, false);
 }
 
+// Recursively disposes every geometry, material, and material texture found
+// on an Object3D's subtree. THREE doesn't do this automatically when an
+// object is just dropped/removed from the scene — without an explicit
+// walk-and-dispose like this, every AR session entered on a model-heavy
+// menu leaks that model's GPU buffers for the lifetime of the page.
+function disposeObject3D(root: THREE.Object3D) {
+  const seenMaterials = new Set<THREE.Material>();
+  root.traverse((obj: any) => {
+    if (obj.geometry) {
+      obj.geometry.dispose();
+    }
+    const materials: THREE.Material[] = Array.isArray(obj.material)
+      ? obj.material
+      : obj.material
+      ? [obj.material]
+      : [];
+    for (const material of materials) {
+      if (seenMaterials.has(material)) continue;
+      seenMaterials.add(material);
+      for (const key of Object.keys(material)) {
+        const value = (material as any)[key];
+        if (value && typeof value === "object" && "isTexture" in value) {
+          (value as THREE.Texture).dispose();
+        }
+      }
+      material.dispose();
+    }
+  });
+}
+
 // A flat "frame" (square annulus with rounded corners) geometry, replacing
 // the plain RingGeometry the reticle used to use. Built the same way a
 // washer/annulus shape would be: an outer rounded-square boundary with an
@@ -336,10 +366,29 @@ export function WebXRPlacementViewer({
     const container = containerRef.current!;
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    // Capping pixel ratio at 2 avoids rendering 3x/4x as many pixels as a
+    // 1x display on high-DPI phones for essentially no visible benefit in
+    // an AR passthrough view — this is one of the single biggest wins for
+    // frame time and thermal throttling on mid-range Android hardware.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
     container.appendChild(renderer.domElement);
+
+    // WebGL contexts can be lost (backgrounding the tab, OS memory
+    // pressure, GPU driver reset) — without handling this, the canvas
+    // would silently go blank and setAnimationLoop would keep firing
+    // against a dead context. preventDefault() on the loss event signals
+    // the browser we intend to try to restore rather than tearing down.
+    function onContextLost(e: Event) {
+      e.preventDefault();
+      console.warn("[WebXRPlacementViewer] WebGL context lost.");
+    }
+    function onContextRestored() {
+      console.warn("[WebXRPlacementViewer] WebGL context restored.");
+    }
+    renderer.domElement.addEventListener("webglcontextlost", onContextLost, false);
+    renderer.domElement.addEventListener("webglcontextrestored", onContextRestored, false);
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera();
@@ -809,12 +858,32 @@ export function WebXRPlacementViewer({
       hitTestSource?.cancel?.();
       transientHitTestSource?.cancel?.();
       renderer.setAnimationLoop(null);
+      renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
+      renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
       for (const mesh of planeMeshes.values()) {
         scene.remove(mesh);
         mesh.geometry.dispose();
       }
       planeMeshes.clear();
       planeMaterial.dispose();
+
+      // Reticle geometry/material are created fresh every runArSession call
+      // (nothing shares them across sessions), so leaving them undisposed
+      // here would leak one set of GPU buffers per AR session entered.
+      reticle.geometry.dispose();
+      reticleMaterial.dispose();
+
+      // The loaded GLB (pendingModel covers both the placed-and-unplaced
+      // cases, since placedModel is just a reference to the same object
+      // once placed) can carry a meaningful number of geometries/materials/
+      // textures for a detailed dish model — walk and dispose all of them
+      // rather than just dropping the JS reference, otherwise every
+      // enter/exit of AR on the same dish leaks that model's GPU memory.
+      if (pendingModel) {
+        disposeObject3D(pendingModel);
+      }
+      activeAnchor?.delete?.();
+
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -838,6 +907,13 @@ export function WebXRPlacementViewer({
     const depthViewMatrix = new THREE.Matrix4();
     const depthOrigin = new THREE.Vector3();
     const depthForward = new THREE.Vector3();
+    const depthPoint = new THREE.Vector3();
+    // Reused every frame for the drag-to-move block below.
+    const dragMatrix = new THREE.Matrix4();
+    const dragPosition = new THREE.Vector3();
+    // Reused every frame for the persistent-anchor tracking block below.
+    const anchorMatrix = new THREE.Matrix4();
+    const anchorPosition = new THREE.Vector3();
 
     renderer.setAnimationLoop((_time, frame: any) => {
       if (!frame) return;
@@ -880,8 +956,8 @@ export function WebXRPlacementViewer({
               depthViewMatrix.fromArray(view.transform.matrix);
               depthOrigin.setFromMatrixPosition(depthViewMatrix);
               depthForward.set(0, 0, -1).transformDirection(depthViewMatrix);
-              const point = depthOrigin.clone().addScaledVector(depthForward, depthMeters);
-              hitMatrix.makeTranslation(point.x, point.y, point.z);
+              depthPoint.copy(depthOrigin).addScaledVector(depthForward, depthMeters);
+              hitMatrix.makeTranslation(depthPoint.x, depthPoint.y, depthPoint.z);
               hitValid = true;
             }
           }
@@ -932,10 +1008,9 @@ export function WebXRPlacementViewer({
           if (result.inputSource === draggingInputSource && result.results.length > 0) {
             const pose = result.results[0].getPose(localSpace);
             if (pose) {
-              const hitPosition = new THREE.Vector3().setFromMatrixPosition(
-                new THREE.Matrix4().fromArray(pose.transform.matrix)
-              );
-              placedModel.position.copy(hitPosition);
+              dragMatrix.fromArray(pose.transform.matrix);
+              dragPosition.setFromMatrixPosition(dragMatrix);
+              placedModel.position.copy(dragPosition);
               dragOccurred = true;
             }
           }
@@ -954,17 +1029,16 @@ export function WebXRPlacementViewer({
       if (activeAnchor && !draggingInputSource && rotateStartAngle === null) {
         const anchorPose = frame.getPose((activeAnchor as any).anchorSpace, localSpace);
         if (anchorPose) {
-          const anchorPos = new THREE.Vector3().setFromMatrixPosition(
-            new THREE.Matrix4().fromArray(anchorPose.transform.matrix)
-          );
+          anchorMatrix.fromArray(anchorPose.transform.matrix);
+          anchorPosition.setFromMatrixPosition(anchorMatrix);
           if (!placedModel && modelLoaded && pendingModel) {
             placedModel = pendingModel;
             scene.add(placedModel);
-            placedModel.position.copy(anchorPos);
+            placedModel.position.copy(anchorPosition);
             setPhase("active-placed");
             setRestoredFromMemory(true);
           } else if (placedModel) {
-            placedModel.position.copy(anchorPos);
+            placedModel.position.copy(anchorPosition);
           }
         }
       }
