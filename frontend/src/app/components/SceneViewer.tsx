@@ -3,6 +3,7 @@ import { useParams } from "react-router";
 import { T } from "./tokens.mts";
 import { ImageTrackingViewer } from "./ImageTrackingViewer";
 import { WebXRPlacementViewer } from "./WebXRPlacementViewer";
+import { getContrastTextColor } from "../lib/colorContrast";
 
 const API_URL = (import.meta as any).env.VITE_API_URL || "";
 
@@ -14,6 +15,8 @@ interface SceneData {
   usdz_url: string | null;
   /** Compiled MindAR .mind target file for the image-tracking fallback. */
   mind_target_url?: string | null;
+  /** The dish's restaurant's brand color — drives every accent/button on this page. */
+  primary_color?: string | null;
   exposure: number;
   shadow_intensity: number;
   shadow_softness: number;
@@ -165,8 +168,8 @@ export function SceneViewer() {
     return (
       <div
         style={{
-          background: T.bg,
-          color: T.muted,
+          background: "#ffffff",
+          color: "#8a8a8a",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -183,8 +186,8 @@ export function SceneViewer() {
     return (
       <div
         style={{
-          background: T.bg,
-          color: "#f87171",
+          background: "#ffffff",
+          color: "#dc2626",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -224,13 +227,21 @@ export function SceneViewer() {
     );
   }
 
+  // Every accent on this page (header bar, AR buttons, progress fill,
+  // spinner, help button) traces back to this one restaurant color,
+  // falling back to the app default only if the API didn't send one.
+  // Button text picks black/white automatically since restaurants choose
+  // arbitrary brand colors that can be light or dark.
+  const primaryColor = scene.primary_color || T.primary;
+  const onPrimary = getContrastTextColor(primaryColor, "#1a1a1a", "#ffffff");
+
   return (
     <div
       style={{
         height: "100vh",
         width: "100%",
-        background: T.bg,
-        color: T.text,
+        background: "#ffffff",
+        color: "#1a1a1a",
         fontFamily: "'Segoe UI',system-ui,sans-serif",
         display: "flex",
         flexDirection: "column",
@@ -238,28 +249,38 @@ export function SceneViewer() {
         overflow: "hidden",
       }}
     >
-      {/* Dish name overlay */}
+      {/* Dish name header — shifted to the left with a small vertical accent
+          bar in the restaurant's primary color, and a much less rounded
+          corner treatment than the old floating pill. */}
       {!arActive && (
         <div
           style={{
             position: "absolute",
             top: "1.2rem",
-            left: "50%",
-            transform: "translateX(-50%)",
+            left: "1.2rem",
             zIndex: 10,
-            background: "rgba(13,26,31,0.75)",
-            backdropFilter: "blur(12px)",
-            border: `1px solid ${T.border}`,
-            borderRadius: 999,
-            padding: "0.45rem 1.4rem",
-            fontSize: "1.05rem",
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-            whiteSpace: "nowrap",
-            color: T.accent,
+            background: "#ffffff",
+            border: "1px solid rgba(0,0,0,0.08)",
+            borderRadius: 10,
+            padding: "0.55rem 1.3rem 0.55rem 0.9rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.7rem",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
           }}
         >
-          {scene.name}
+          <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: primaryColor, flexShrink: 0 }} />
+          <span
+            style={{
+              fontSize: "1.05rem",
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+              whiteSpace: "nowrap",
+              color: "#1a1a1a",
+            }}
+          >
+            {scene.name}
+          </span>
         </div>
       )}
 
@@ -275,7 +296,7 @@ export function SceneViewer() {
             alignItems: "center",
             justifyContent: "center",
             gap: "0.9rem",
-            background: T.bg,
+            background: "#ffffff",
           }}
         >
           <div
@@ -283,7 +304,7 @@ export function SceneViewer() {
               width: 160,
               height: 6,
               borderRadius: 999,
-              background: "rgba(255,255,255,0.08)",
+              background: "rgba(0,0,0,0.08)",
               overflow: "hidden",
             }}
           >
@@ -291,13 +312,13 @@ export function SceneViewer() {
               style={{
                 width: `${modelProgress}%`,
                 height: "100%",
-                background: T.primary,
+                background: primaryColor,
                 borderRadius: 999,
                 transition: "width 0.2s ease",
               }}
             />
           </div>
-          <span style={{ fontSize: "0.85rem", color: T.muted }}>
+          <span style={{ fontSize: "0.85rem", color: "#8a8a8a" }}>
             Loading model{modelProgress > 0 ? ` ${modelProgress}%` : "..."}
           </span>
         </div>
@@ -313,8 +334,8 @@ export function SceneViewer() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: T.bg,
-            color: "#f87171",
+            background: "#ffffff",
+            color: "#dc2626",
             fontSize: "0.95rem",
             textAlign: "center",
             padding: "0 2rem",
@@ -325,28 +346,21 @@ export function SceneViewer() {
       )}
 
       {/*
-        UNIFIED BOTTOM ACTION STACK
+        UNIFIED BOTTOM ACTION ROW
         ---------------------------------------------------------------
-        Everything that can appear near the bottom of the screen at once
-        (the AR status toast, our WebXR button, and the image-tracking
-        button) used to be positioned independently with hand-tuned
-        percentage/calc offsets. That's what caused the overlap — each
-        offset was guessed in isolation and didn't account for the
-        others' actual rendered height on a given screen size.
-
-        Instead, everything here is a normal flow child of ONE flex
-        column with a real `gap`, so spacing is always correct no matter
-        which combination of items is visible. `column-reverse` means
-        the first JSX child sits at the bottom (anchored to the same
-        spot as model-viewer's native AR button below) and each
-        additional item stacks upward from there.
+        View in AR and Scan to view in AR now sit side by side in one
+        horizontal row (instead of stacked), wrapping to a second line on
+        very narrow screens if both happen to be present at once. The
+        optional AR status toast sits above that row in normal (not
+        reversed) flex-column order, so it never needs to fight the row
+        for horizontal space.
 
         The one thing NOT in this stack is model-viewer's native
         Scene Viewer / Quick Look button — it must stay physically
         nested inside <model-viewer> for its slot to work. It's pinned
         at a fixed bottom:10%, so this stack's own anchor shifts up by
-        one button's height + gap whenever that native button is the
-        one actually visible (i.e. whenever webXrSupported is false).
+        one row's height + gap whenever that native button is the one
+        actually visible (i.e. whenever webXrSupported is false).
       */}
       {!arActive && !modelLoading && (
         <div
@@ -357,78 +371,57 @@ export function SceneViewer() {
             transform: "translateX(-50%)",
             zIndex: 10,
             display: "flex",
-            flexDirection: "column-reverse",
+            flexDirection: "column",
             alignItems: "center",
             gap: "0.75rem",
           }}
         >
-          {webXrSupported && (
-            <button
-              onClick={() => setWebXrActive(true)}
-              style={{
-                background: T.primary,
-                color: "#fff",
-                border: "none",
-                borderRadius: 12,
-                padding: "0.85rem 2.4rem",
-                fontSize: "1rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-              View in AR
-            </button>
-          )}
-
           {arMessage && (
             <div
               style={{
-                background: "rgba(13,26,31,0.9)",
-                border: `1px solid ${T.border}`,
+                background: "#ffffff",
+                border: "1px solid rgba(0,0,0,0.08)",
                 borderRadius: 10,
                 padding: "0.6rem 1.1rem",
                 fontSize: "0.85rem",
-                color: "#f87171",
+                color: "#dc2626",
                 maxWidth: "80vw",
                 textAlign: "center",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
               }}
             >
               {arMessage}
             </div>
           )}
 
-          {/*
-            IMAGE TRACKING trigger — shown whenever a compiled .mind
-            target exists for this scene, as an alternative AR method
-            alongside WebXR / Scene Viewer / Quick Look (not just as a
-            last-resort fallback).
-          */}
-          {scene.mind_target_url && (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          {/* View in AR + Scan to view in AR, horizontally aligned. */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              flexWrap: "wrap",
+              gap: "0.75rem",
+            }}
+          >
+            {webXrSupported && (
               <button
-                onClick={() => setImageTrackingActive(true)}
+                onClick={() => setWebXrActive(true)}
                 style={{
-                  background: T.primary,
-                  color: "#fff",
+                  background: primaryColor,
+                  color: onPrimary,
                   border: "none",
                   borderRadius: 12,
-                  padding: "0.85rem 2.4rem",
+                  padding: "0.85rem 2.2rem",
                   fontSize: "1rem",
                   fontWeight: 700,
                   cursor: "pointer",
-                  boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
                   display: "flex",
                   alignItems: "center",
                   gap: "0.5rem",
+                  whiteSpace: "nowrap",
                 }}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -436,29 +429,66 @@ export function SceneViewer() {
                   <path d="M2 17l10 5 10-5" />
                   <path d="M2 12l10 5 10-5" />
                 </svg>
-                Scan to view in AR
+                View in AR
               </button>
+            )}
 
-              <button
-                onClick={() => setShowArGuide(true)}
-                aria-label="How does this work?"
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  background: "rgba(13,26,31,0.85)",
-                  border: `1px solid ${T.border}`,
-                  color: T.accent,
-                  fontWeight: 700,
-                  fontSize: "1rem",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
-              >
-                ?
-              </button>
-            </div>
-          )}
+            {/*
+              IMAGE TRACKING trigger — shown whenever a compiled .mind
+              target exists for this scene, as an alternative AR method
+              alongside WebXR / Scene Viewer / Quick Look (not just as a
+              last-resort fallback).
+            */}
+            {scene.mind_target_url && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <button
+                  onClick={() => setImageTrackingActive(true)}
+                  style={{
+                    background: primaryColor,
+                    color: onPrimary,
+                    border: "none",
+                    borderRadius: 12,
+                    padding: "0.85rem 2.2rem",
+                    fontSize: "1rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                    <path d="M2 17l10 5 10-5" />
+                    <path d="M2 12l10 5 10-5" />
+                  </svg>
+                  Scan to view in AR
+                </button>
+
+                <button
+                  onClick={() => setShowArGuide(true)}
+                  aria-label="How does this work?"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    background: "#ffffff",
+                    border: "1px solid rgba(0,0,0,0.1)",
+                    color: primaryColor,
+                    fontWeight: 700,
+                    fontSize: "1rem",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  ?
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -480,14 +510,14 @@ export function SceneViewer() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: T.bg3,
-              border: `1px solid ${T.border}`,
+              background: "#ffffff",
+              border: "1px solid rgba(0,0,0,0.08)",
               borderRadius: 14,
               padding: "1.5rem",
               maxWidth: 340,
             }}
           >
-            <p style={{ fontWeight: 700, color: T.accent, marginBottom: "0.6rem" }}>
+            <p style={{ fontWeight: 700, color: primaryColor, marginBottom: "0.6rem" }}>
               How image tracking AR works
             </p>
             {[
@@ -497,8 +527,8 @@ export function SceneViewer() {
               "Hold steady in good light until the dish appears on top",
             ].map((step, i) => (
               <div key={i} style={{ display: "flex", gap: "0.6rem", marginBottom: "0.5rem" }}>
-                <span style={{ color: T.accent, fontWeight: 700 }}>{i + 1}.</span>
-                <span style={{ color: T.muted, fontSize: "0.88rem" }}>{step}</span>
+                <span style={{ color: primaryColor, fontWeight: 700 }}>{i + 1}.</span>
+                <span style={{ color: "#5a5a5a", fontSize: "0.88rem" }}>{step}</span>
               </div>
             ))}
             <button
@@ -506,8 +536,8 @@ export function SceneViewer() {
               style={{
                 marginTop: "0.8rem",
                 width: "100%",
-                background: T.primary,
-                color: "#fff",
+                background: primaryColor,
+                color: onPrimary,
                 border: "none",
                 borderRadius: 8,
                 padding: "0.6rem",
@@ -561,15 +591,15 @@ export function SceneViewer() {
             bottom: "10%",
             left: "50%",
             transform: "translateX(-50%)",
-            background: arSupported ? T.primary : "rgba(255,255,255,0.12)",
-            color: arSupported ? "#fff" : T.muted,
+            background: arSupported ? primaryColor : "rgba(0,0,0,0.08)",
+            color: arSupported ? onPrimary : "#9a9a9a",
             border: "none",
             borderRadius: 12,
             padding: "0.85rem 2.4rem",
             fontSize: "1rem",
             fontWeight: 700,
             cursor: arSupported ? "pointer" : "not-allowed",
-            boxShadow: arSupported ? "0 4px 24px rgba(166,81,17,0.4)" : "none",
+            boxShadow: arSupported ? "0 4px 20px rgba(0,0,0,0.18)" : "none",
             display: "flex",
             alignItems: "center",
             gap: "0.5rem",

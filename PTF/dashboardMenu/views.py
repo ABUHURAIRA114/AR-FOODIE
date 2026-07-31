@@ -41,6 +41,7 @@ def api_dish(request, pk):
         'glb_url':     request.build_absolute_uri(dish.glb_file.url) if dish.glb_file else None,
         'usdz_url':    request.build_absolute_uri(dish.usdz_file.url) if dish.usdz_file else None,
         'mind_target_url': request.build_absolute_uri(restaurant.mind_target.url) if restaurant.mind_target else None,
+        'primary_color': restaurant.primary_color,
         **_dish_ar_fields(dish),
     })
 
