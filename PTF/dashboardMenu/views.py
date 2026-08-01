@@ -42,6 +42,7 @@ def api_dish(request, pk):
         'usdz_url':    request.build_absolute_uri(dish.usdz_file.url) if dish.usdz_file else None,
         'mind_target_url': request.build_absolute_uri(restaurant.mind_target.url) if restaurant.mind_target else None,
         'primary_color': restaurant.primary_color,
+        'secondary_color': restaurant.secondary_color,
         **_dish_ar_fields(dish),
     })
 
@@ -97,6 +98,7 @@ def restaurant_list(request):
                 "logo":        request.build_absolute_uri(r.logo.url) if r.logo else None,
                 "primaryColor": r.primary_color,
                 "headerBg":     r.header_bg,
+                "secondaryColor": r.secondary_color,
                 "plan":        r.plan,
                 "isVerified":  r.is_verified,
             }
@@ -116,6 +118,7 @@ def menu(request, slug):
             "logo":          request.build_absolute_uri(restaurant.logo.url) if restaurant.logo else None,
             "primary_color": restaurant.primary_color,
             "header_bg":     restaurant.header_bg,
+            "secondary_color": restaurant.secondary_color,
             "description":   restaurant.description,
         },
         "categories": [],

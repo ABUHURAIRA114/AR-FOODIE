@@ -46,6 +46,13 @@ class Restaurant(models.Model):
     description   = models.TextField(blank=True)
     primary_color = models.CharField(max_length=7, default="#FFC200")
     header_bg     = models.CharField(max_length=7, default="#f7f5f5")
+    secondary_color = models.CharField(
+        max_length=7, default="#f0f0f0",
+        help_text="A restaurant's second brand color — currently used as the "
+                   "full-page background of the single-dish AR viewer, and "
+                   "for the \"View Menu\" button on the public restaurant "
+                   "directory page.",
+    )
     mind_target   = models.FileField(
         upload_to=restaurant_mind_target_path, blank=True, null=True,
         help_text=(

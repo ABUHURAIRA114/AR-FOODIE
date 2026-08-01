@@ -17,6 +17,8 @@ interface SceneData {
   mind_target_url?: string | null;
   /** The dish's restaurant's brand color — drives every accent/button on this page. */
   primary_color?: string | null;
+  /** The restaurant's second brand color — this page's own background. */
+  secondary_color?: string | null;
   exposure: number;
   shadow_intensity: number;
   shadow_softness: number;
@@ -235,13 +237,23 @@ export function SceneViewer() {
   const primaryColor = scene.primary_color || T.primary;
   const onPrimary = getContrastTextColor(primaryColor, "#1a1a1a", "#ffffff");
 
+  // The restaurant's second brand color is this whole page's background —
+  // also arbitrary (light or dark), so ordinary page text (captions, error
+  // copy) picks its own readable color the same way button text does. The
+  // header/toast/modal stay self-contained white cards regardless, so they
+  // don't need this — only text sitting directly on the page background does.
+  const secondaryColor = scene.secondary_color || "#ffffff";
+  const onSecondary = getContrastTextColor(secondaryColor, "#1a1a1a", "#ffffff");
+  const secondaryMuted = onSecondary === "#1a1a1a" ? "rgba(26,26,26,0.55)" : "rgba(255,255,255,0.65)";
+  const secondaryTrack = onSecondary === "#1a1a1a" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.18)";
+
   return (
     <div
       style={{
         height: "100vh",
         width: "100%",
-        background: "#ffffff",
-        color: "#1a1a1a",
+        background: secondaryColor,
+        color: onSecondary,
         fontFamily: "'Segoe UI',system-ui,sans-serif",
         display: "flex",
         flexDirection: "column",
@@ -296,7 +308,7 @@ export function SceneViewer() {
             alignItems: "center",
             justifyContent: "center",
             gap: "0.9rem",
-            background: "#ffffff",
+            background: secondaryColor,
           }}
         >
           <div
@@ -304,7 +316,7 @@ export function SceneViewer() {
               width: 160,
               height: 6,
               borderRadius: 999,
-              background: "rgba(0,0,0,0.08)",
+              background: secondaryTrack,
               overflow: "hidden",
             }}
           >
@@ -318,7 +330,7 @@ export function SceneViewer() {
               }}
             />
           </div>
-          <span style={{ fontSize: "0.85rem", color: "#8a8a8a" }}>
+          <span style={{ fontSize: "0.85rem", color: secondaryMuted }}>
             Loading model{modelProgress > 0 ? ` ${modelProgress}%` : "..."}
           </span>
         </div>
@@ -334,8 +346,8 @@ export function SceneViewer() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "#ffffff",
-            color: "#dc2626",
+            background: secondaryColor,
+            color: onSecondary === "#1a1a1a" ? "#dc2626" : "#fca5a5",
             fontSize: "0.95rem",
             textAlign: "center",
             padding: "0 2rem",

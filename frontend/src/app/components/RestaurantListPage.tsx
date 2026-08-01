@@ -15,6 +15,7 @@ interface Restaurant {
   logo: string | null;
   primaryColor: string;
   headerBg: string;
+  secondaryColor: string;
   plan: string;
   isVerified: boolean;
 }
@@ -110,7 +111,7 @@ export function RestaurantListPage() {
             // top of either one picks black or white for readability
             // depending on how bright that color actually is.
             const cardBg = r.primaryColor || T.primary;
-            const btnBg = r.headerBg || T.bg3;
+            const btnBg = r.secondaryColor || T.bg3;
             const cardText = getContrastTextColor(cardBg, "#1a1a1a", "#ffffff");
             const cardMuted = cardText === "#1a1a1a" ? "rgba(26,26,26,0.65)" : "rgba(255,255,255,0.75)";
             const btnText = getContrastTextColor(btnBg, "#1a1a1a", "#ffffff");
