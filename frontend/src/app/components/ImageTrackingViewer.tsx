@@ -79,6 +79,11 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
   // loading, so the touch handlers — set up independently of the async
   // load — can rotate/move it as soon as it exists.
   const spinGroupRef = useRef<THREE.Group | null>(null);
+  // A second group, decoupled from MindAR's own anchor.group, that the
+  // render loop below eases toward the anchor's raw tracked pose every
+  // frame (see the animation loop for why) rather than following it
+  // directly. spinGroup/model live under THIS, not under anchor.group.
+  const smoothGroupRef = useRef<THREE.Group | null>(null);
   // The anchor's own group, and the (fixed, non-moving) tracking camera —
   // both needed by the drag handler to turn a screen-space touch point into
   // a position on the marker's plane. Populated once init() creates them.
@@ -118,6 +123,29 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
           uiLoading: "no",
           uiScanning: "no",
           uiError: "no",
+          // Jitter reduction, part 1: MindAR smooths its raw per-frame pose
+          // estimate through an internal One-Euro filter before ever
+          // exposing it — these two knobs are that filter's own tuning,
+          // not something layered on top. filterBeta controls how strongly
+          // fast movement is allowed to "cut through" the smoothing (its
+          // default of 1000 barely restrains anything, so the phone's own
+          // hand-shake reads straight through as visible shake); dropping
+          // it to 10 makes the filter hold steady through normal hand
+          // tremor and only respond to genuinely deliberate movement, at
+          // the cost of a little added lag when the phone or marker really
+          // is moving fast. filterMinCF is the filter's noise floor when
+          // basically stationary — 0.0001 (down from the 0.001 default)
+          // keeps a "resting" marker from visibly buzzing in place.
+          filterMinCF: 0.0001,
+          filterBeta: 10,
+          // Jitter reduction, part 2: raising missTolerance (default 5)
+          // means a few frames of motion blur, brief occlusion, or a
+          // shaky hand don't immediately flip the target to "lost" — every
+          // lost→found transition re-acquires a fresh pose with none of
+          // the above smoothing warmed up yet, which is what produces the
+          // sharp visual "jump" that reads as jitter's worst moments.
+          // Tolerating more misses means that cycle happens far less often.
+          missTolerance: 10,
         });
         mindarRef.current = mindarThree;
 
@@ -136,8 +164,36 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         const anchor = mindarThree.addAnchor(0);
         anchorGroupRef.current = anchor.group;
 
-        anchor.onTargetFound = () => !cancelled && setPhase("found");
-        anchor.onTargetLost = () => !cancelled && setPhase("scanning");
+        anchor.onTargetFound = () => {
+          if (!cancelled) setPhase("found");
+          const smoothGroup = smoothGroupRef.current;
+          const anchorGroup = anchorGroupRef.current;
+          if (smoothGroup && anchorGroup) {
+            // Snap instantly to the freshly (re)acquired pose rather than
+            // letting the lerp/slerp below ease in from wherever the
+            // group happened to be sitting before — otherwise every single
+            // target acquisition (including the very first one, starting
+            // from the group's default (0,0,0)) would visibly animate the
+            // model sliding in from the wrong place instead of just
+            // appearing where the marker actually is. The per-frame
+            // smoothing in the animation loop only needs to catch the much
+            // smaller, continuous jitter WITHIN a tracking session, not
+            // this one-time re-acquisition jump.
+            anchorGroup.matrix.decompose(smoothGroup.position, smoothGroup.quaternion, smoothGroup.scale);
+            smoothGroup.visible = true;
+          }
+        };
+        anchor.onTargetLost = () => {
+          if (!cancelled) setPhase("scanning");
+          // anchor.group itself is hidden by MindAR on loss, which used to
+          // hide the model "for free" back when it was a direct child of
+          // anchor.group. Now that it lives under a separate smoothGroup
+          // (see below), that has to be done explicitly instead — without
+          // this, the model would stay frozen on screen, drifting toward
+          // whatever stale pose the smoothing keeps easing toward, instead
+          // of disappearing the moment tracking is actually lost.
+          if (smoothGroupRef.current) smoothGroupRef.current.visible = false;
+        };
 
         // Load the GLB onto the anchor. DRACOLoader is required for any GLB
         // that uses Draco mesh compression — without it attached,
@@ -244,8 +300,22 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         // it up/down or side-to-side.
         const spinGroup = new THREE.Group();
         spinGroup.add(model);
-        anchor.group.add(spinGroup);
         spinGroupRef.current = spinGroup;
+
+        // Smoothing group: added directly to the scene, NOT to
+        // anchor.group. MindAR updates anchor.group's transform every
+        // single frame straight from its own (already-filtered, but still
+        // not perfectly still) tracked pose — parenting our content
+        // directly under it means every remaining flicker in that pose
+        // reads as visible model jitter. Instead we ease this group's
+        // transform toward anchor.group's current transform each frame
+        // (see the animation loop below) — a second, independent low-pass
+        // filter on top of MindAR's own, which is what actually kills the
+        // remaining shake that filterMinCF/filterBeta alone don't catch.
+        const smoothGroup = new THREE.Group();
+        smoothGroup.add(spinGroup);
+        scene.add(smoothGroup);
+        smoothGroupRef.current = smoothGroup;
 
         // Basic lighting — image-tracked AR has no real-world light estimation,
         // so a couple of simple lights keep the model from looking flat/black.
@@ -304,8 +374,53 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
           });
         }
 
-        renderer.setAnimationLoop(() => {
+        // Scratch objects reused every frame below to decompose
+        // anchor.group's raw tracked matrix, so smoothing doesn't allocate
+        // on a 60fps loop.
+        const anchorPos = new THREE.Vector3();
+        const anchorQuat = new THREE.Quaternion();
+        const anchorScale = new THREE.Vector3();
+        let lastFrameTime = performance.now();
+        // Half-life (ms) of the extra smoothing filter: after this many
+        // milliseconds, the smoothed group has closed half the remaining
+        // gap to the anchor's actual current pose. ~90ms is short enough
+        // that deliberate movement (walking around, tilting the phone)
+        // still tracks the marker responsively, but long enough to average
+        // out ordinary hand-shake between frames.
+        const SMOOTHING_HALF_LIFE_MS = 90;
+
+        renderer.setAnimationLoop((time: number) => {
           renderer!.setClearColor(0x000000, 0);
+
+          const anchorGroup = anchorGroupRef.current;
+          const smoothGroup = smoothGroupRef.current;
+          if (anchorGroup && smoothGroup && smoothGroup.visible) {
+            // MindAR writes each frame's tracked pose straight into
+            // anchor.group.matrix itself (not into .position/.quaternion,
+            // which it never touches) — decompose that directly rather
+            // than calling anchor.group.updateMatrix(), which would
+            // silently rebuild .matrix FROM those untouched properties and
+            // overwrite the real tracked pose with a stale identity one.
+            // anchor.group is a direct child of `scene` with no transform
+            // of its own above it, so .matrix already equals its effective
+            // world matrix here — no need to wait on updateMatrixWorld().
+            anchorPos.setFromMatrixPosition(anchorGroup.matrix);
+            anchorQuat.setFromRotationMatrix(anchorGroup.matrix);
+            anchorScale.setFromMatrixScale(anchorGroup.matrix);
+
+            const dt = Math.max(0, time - lastFrameTime);
+            // Converts the half-life above into a per-frame lerp/slerp
+            // factor that's correct regardless of the device's actual
+            // frame rate — a fixed alpha (e.g. always 0.2) would smooth
+            // far less per second on a 120Hz display than a 30Hz one.
+            const alpha = 1 - Math.pow(0.5, dt / SMOOTHING_HALF_LIFE_MS);
+
+            smoothGroup.position.lerp(anchorPos, alpha);
+            smoothGroup.quaternion.slerp(anchorQuat, alpha);
+            smoothGroup.scale.lerp(anchorScale, alpha);
+          }
+          lastFrameTime = time;
+
           renderer!.render(scene, camera);
         });
       } catch (err: any) {
