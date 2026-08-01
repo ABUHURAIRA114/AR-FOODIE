@@ -208,6 +208,7 @@ export function SceneViewer() {
         glbUrl={scene.glb_url}
         mindTargetUrl={scene.mind_target_url}
         name={scene.name}
+        exposure={scene.exposure}
         onExit={() => setImageTrackingActive(false)}
       />
     );
@@ -220,6 +221,7 @@ export function SceneViewer() {
         name={scene.name}
         modelScale={scene.webxr_model_scale}
         anchorKey={scene.id}
+        exposure={scene.exposure}
         onExit={() => setWebXrActive(false)}
         onFallbackToSceneViewer={() => {
           setWebXrActive(false);

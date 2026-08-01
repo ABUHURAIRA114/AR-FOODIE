@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { T } from "./tokens.mts";
 
 /**
@@ -51,6 +52,13 @@ interface ImageTrackingViewerProps {
    * originally modeled/exported). 1 = default size, 2 = twice as large, etc.
    */
   modelScale?: number;
+  /**
+   * Same exposure value the regular model-viewer preview uses
+   * (scene.exposure from the API) — kept in sync so the model doesn't look
+   * noticeably different in brightness between the normal preview and AR.
+   * Defaults to 1 (neutral) if not supplied.
+   */
+  exposure?: number;
 }
 
 type TrackingPhase = "loading" | "ready" | "scanning" | "found" | "camera-denied" | "error";
@@ -72,7 +80,7 @@ function stopCameraStream(mindarThree: any) {
   }
 }
 
-export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, modelScale = 1 }: ImageTrackingViewerProps) {
+export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, modelScale = 1, exposure = 1 }: ImageTrackingViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
   // Holds the spin group (see init() below) once the model has finished
@@ -160,6 +168,21 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         // every frame so the <video> element underneath shows through in
         // every area the 3D scene doesn't cover.
         renderer.setClearColor(0x000000, 0);
+
+        // Three's default is flat linear output, which is exactly why PBR
+        // (MeshStandardMaterial, what glTF exports almost always use)
+        // models look washed out/low-contrast with no other changes at
+        // all. ACES Filmic gives the same highlight rolloff/contrast a
+        // real camera curve has, and correct sRGB output color space is
+        // what makes colors read at full saturation instead of muted —
+        // both one-line renderer settings, not extra draw calls, so this
+        // costs nothing at render time. This only affects the 3D model
+        // Three.js draws to the canvas, not the live camera <video>
+        // element sitting underneath it, which the browser composites
+        // completely separately.
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = exposure;
 
         const anchor = mindarThree.addAnchor(0);
         anchorGroupRef.current = anchor.group;
@@ -317,13 +340,40 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         scene.add(smoothGroup);
         smoothGroupRef.current = smoothGroup;
 
-        // Basic lighting — image-tracked AR has no real-world light estimation,
-        // so a couple of simple lights keep the model from looking flat/black.
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+        // --- Image-based lighting (free, no network fetch) ---
+        // PBR materials need an actual environment to reflect for their
+        // specular response — lit by only a couple of point/directional
+        // lights, they read as flat and plasticky no matter how those
+        // direct lights are tuned, because there's nothing for the "shiny"
+        // part of the material to pick up. RoomEnvironment is a small
+        // PROCEDURALLY generated neutral studio setup (no image download
+        // at all) baked into a PMREM texture ONCE here at startup. After
+        // that it's just one more texture sample already folded into the
+        // same PBR shading pass every material does anyway — no
+        // measurable per-frame cost.
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+        pmremGenerator.dispose();
+
+        // --- Direct lights ---
+        // A real key + fill pairing instead of one flat directional light
+        // plus a strong hemisphere fill — a bright, even hemisphere light
+        // lifts every shadow at once, which is what actually reads as
+        // "flat" no matter how bright the main light is. The hemisphere
+        // here is now just a faint floor so unlit undersides never crush
+        // to pure black; the key light is brighter and angled for real
+        // shape/shadow definition; a dim, cool-toned fill from the
+        // opposite side keeps the shadow side from going completely dead.
+        // Still only 3 lights total (same as before, +1) — trivial for a
+        // forward-lit PBR material, no shadow maps involved.
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.35);
         scene.add(hemiLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(0.5, 1, 0.5);
-        scene.add(dirLight);
+        const keyLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        keyLight.position.set(0.6, 1.2, 0.8);
+        scene.add(keyLight);
+        const fillLight = new THREE.DirectionalLight(0xbcd4ff, 0.45);
+        fillLight.position.set(-0.8, 0.4, -0.6);
+        scene.add(fillLight);
 
         if (cancelled) return;
 
