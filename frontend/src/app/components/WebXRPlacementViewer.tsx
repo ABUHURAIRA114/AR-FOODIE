@@ -209,6 +209,19 @@ type SessionPhase =
 
 // Builds a single rounded-square outline path (used both for the reticle's
 // outer edge and, at a smaller size, its inner edge to form a "frame").
+// Small cluster of normalized-UV offsets sampled from the depth buffer each
+// frame the depth-sensing fallback runs (layer 2 below), instead of a
+// single center pixel — averaging a few nearby points meaningfully reduces
+// per-pixel sensor noise for cheap. Kept small (3 points, tight radius) on
+// purpose: this only ever samples the same tiny patch of image, not a
+// meaningfully larger area, so it stays a fast approximation rather than a
+// real cost.
+const DEPTH_SAMPLE_OFFSETS: [number, number][] = [
+  [0, 0],
+  [0.02, 0],
+  [0, 0.02],
+];
+
 function traceRoundedSquare(path: THREE.Path | THREE.Shape, half: number, cornerRadius: number) {
   const h = half;
   const r = Math.min(cornerRadius, half);
@@ -289,6 +302,14 @@ export function WebXRPlacementViewer({
   // purely cosmetic (drives the "remembered from last time" coaching text
   // below), cleared the moment the user taps to re-place.
   const [restoredFromMemory, setRestoredFromMemory] = useState(false);
+  // Surface-detection UX: true once scanning has been running for a while
+  // with no hit at all — see the setTimeout near setPhase("active-searching")
+  // below. This can't make the underlying ARCore tracking itself find a
+  // surface any faster, but a long silent scan with zero feedback reads as
+  // "broken" even when it's just a genuinely hard environment (low light,
+  // a plain/texture-less surface, one that's too close/far) — telling the
+  // user what to actually try measurably helps them get a hit sooner.
+  const [scanningTooLong, setScanningTooLong] = useState(false);
 
   // --- Feature-detect WebXR + hit-test support, then go straight into AR ---
   // No intermediate "Start AR" tap here: the click that navigated the user
@@ -373,8 +394,21 @@ export function WebXRPlacementViewer({
 
   async function runArSession(session: XRSession) {
     const container = containerRef.current!;
+    // Declared early (before disposeSceneAndRenderer below, which can run
+    // on the GLB-load-failure path — i.e. potentially before this is ever
+    // assigned a real value) so that function can safely clear it
+    // regardless of how far setup actually got. Assigned its real value
+    // much further down, right before entering "active-searching".
+    let scanTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    // antialias:false is a deliberate perf trade-off: MSAA has a real cost
+    // on mobile GPUs, and AA on a 3D model matters much less here than it
+    // would in a normal scene — it's composited over a live, already
+    // slightly-noisy camera feed, where a single model's edge aliasing is
+    // far less noticeable than it would be against a clean background.
+    // powerPreference is just a hint (ignored on single-GPU phones, which
+    // is most AR-capable devices) — harmless to set either way.
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: "high-performance" });
     // Capping pixel ratio at 2 avoids rendering 3x/4x as many pixels as a
     // 1x display on high-DPI phones for essentially no visible benefit in
     // an AR passthrough view — this is one of the single biggest wins for
@@ -474,6 +508,13 @@ export function WebXRPlacementViewer({
     // also gives earlier visual feedback that scanning is working. These
     // stay visible even after the model is placed.
     const planeMeshes = new Map<XRPlane, THREE.Mesh>();
+    // Kept in sync with planeMeshes' contents below (added to/spliced out
+    // in the same places entries are added/removed from the Map) purely so
+    // layer 3's raycast fallback in the animation loop has a plain array
+    // ready to go — Array.from(planeMeshes.values()) every single frame
+    // that layer runs would otherwise allocate a fresh array 60 times a
+    // second for no reason.
+    const planeMeshList: THREE.Mesh[] = [];
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x4ade80,
       transparent: true,
@@ -491,7 +532,18 @@ export function WebXRPlacementViewer({
       return geometry;
     }
 
-    function syncPlaneMeshes(frame: any, localSpace: XRReferenceSpace) {
+    // Minimum time between geometry rebuilds for the SAME plane. ARCore can
+    // report a plane's polygon as "changed" many times a second while it's
+    // actively still being scanned/refined — re-triangulating (ShapeGeometry
+    // → earcut) on every single one of those is real, avoidable CPU work for
+    // a visual that's purely informational (it's not what placement actually
+    // uses — that's the hit test, computed separately). A plane mesh's
+    // POSE still updates every frame regardless (see below); only the
+    // polygon shape rebuild itself is throttled, and a 200ms lag on that is
+    // imperceptible for what's essentially a scanning progress indicator.
+    const PLANE_REBUILD_MIN_INTERVAL_MS = 200;
+
+    function syncPlaneMeshes(frame: any, localSpace: XRReferenceSpace, now: number) {
       const detectedPlanes: Set<XRPlane> | undefined = frame.detectedPlanes;
       if (!detectedPlanes) return; // plane-detection wasn't granted — silently skip
 
@@ -501,6 +553,8 @@ export function WebXRPlacementViewer({
           scene.remove(mesh);
           mesh.geometry.dispose();
           planeMeshes.delete(plane);
+          const idx = planeMeshList.indexOf(mesh);
+          if (idx !== -1) planeMeshList.splice(idx, 1);
         }
       }
 
@@ -516,15 +570,26 @@ export function WebXRPlacementViewer({
           mesh = new THREE.Mesh(buildPlaneGeometry(plane), planeMaterial);
           mesh.matrixAutoUpdate = false;
           (mesh as any)._lastChangedTime = lastChanged;
+          (mesh as any)._lastRebuildAt = now;
           planeMeshes.set(plane, mesh);
+          planeMeshList.push(mesh);
           scene.add(mesh);
-        } else if ((mesh as any)._lastChangedTime !== lastChanged) {
-          // Polygon geometry changed (plane grew/merged) — rebuild it.
+        } else if (
+          (mesh as any)._lastChangedTime !== lastChanged &&
+          now - (mesh as any)._lastRebuildAt >= PLANE_REBUILD_MIN_INTERVAL_MS
+        ) {
+          // Polygon geometry changed (plane grew/merged) — rebuild it, but
+          // no more often than PLANE_REBUILD_MIN_INTERVAL_MS per plane.
           mesh.geometry.dispose();
           mesh.geometry = buildPlaneGeometry(plane);
           (mesh as any)._lastChangedTime = lastChanged;
+          (mesh as any)._lastRebuildAt = now;
         }
 
+        // Pose (position/orientation) updates every frame regardless of the
+        // rebuild throttle above — that's cheap (just copying a matrix, no
+        // triangulation), and skipping it would make the highlighted plane
+        // visibly lag behind the camera even when its shape hasn't changed.
         mesh.matrix.fromArray(pose.transform.matrix);
       }
     }
@@ -635,6 +700,57 @@ export function WebXRPlacementViewer({
       overlayEl.addEventListener("touchcancel", onOverlayTouchEnd, { passive: false });
     }
 
+    // Covers every renderer/scene-level resource created above — reused
+    // below both if GLB loading fails (nothing session-specific exists yet
+    // at that point: no hit test sources, no session event listeners) AND
+    // from the normal onSessionEnd handler further down (which calls this
+    // AND does its own additional session-specific teardown on top).
+    // Having one definition instead of two copies is what guarantees the
+    // failure path can't quietly drift out of sync with normal teardown
+    // and leak something onSessionEnd remembers to clean up but this
+    // doesn't (or vice versa).
+    function disposeSceneAndRenderer() {
+      if (scanTimeoutId) clearTimeout(scanTimeoutId);
+      if (overlayEl) {
+        overlayEl.removeEventListener("touchstart", onOverlayTouchStart);
+        overlayEl.removeEventListener("touchmove", onOverlayTouchMove);
+        overlayEl.removeEventListener("touchend", onOverlayTouchEnd);
+        overlayEl.removeEventListener("touchcancel", onOverlayTouchEnd);
+      }
+      renderer.setAnimationLoop(null);
+      renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
+      renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
+
+      for (const mesh of planeMeshes.values()) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
+      planeMeshes.clear();
+      planeMeshList.length = 0;
+      planeMaterial.dispose();
+
+      // Reticle geometry/material are created fresh every runArSession call
+      // (nothing shares them across sessions), so leaving them undisposed
+      // here would leak one set of GPU buffers per AR session entered.
+      reticle.geometry.dispose();
+      reticleMaterial.dispose();
+
+      // The loaded GLB (pendingModel covers both the placed-and-unplaced
+      // cases, since placedModel is just a reference to the same object
+      // once placed) can carry a meaningful number of geometries/materials/
+      // textures for a detailed dish model — walk and dispose all of them
+      // rather than just dropping the JS reference, otherwise every
+      // enter/exit of AR on the same dish leaks that model's GPU memory.
+      if (pendingModel) {
+        disposeObject3D(pendingModel);
+      }
+
+      renderer.dispose();
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
+    }
+
     // Load the GLB BEFORE starting the XR session so:
     // 1. We know the model is ready before the user can tap
     // 2. Any CORS/network error surfaces before the camera opens
@@ -709,6 +825,20 @@ export function WebXRPlacementViewer({
           ? "Couldn't load the 3D model — possible CORS issue. Check that your API server allows cross-origin requests for /media/ files."
           : `Couldn't load the 3D model. (${err?.message ?? "Unknown error"})`
       );
+      // Stability fix: this used to just `return` here, which left the
+      // renderer's canvas attached, its resources undisposed, AND —worse—
+      // the real XR session (camera access, device sensors) silently still
+      // open in the background, since hit-test sources/session listeners/
+      // onSessionEnd are all set up further below, past this point, and
+      // never got a chance to run. A few consecutive failed attempts (e.g.
+      // retrying a broken model URL) would leak an open camera session
+      // each time. Both are cleaned up explicitly now.
+      disposeSceneAndRenderer();
+      try {
+        await session.end();
+      } catch {
+        // Already ending/ended — fine, nothing left to do.
+      }
       return; // abort — don't open the XR session if we have no model
     }
 
@@ -717,23 +847,38 @@ export function WebXRPlacementViewer({
 
     const viewerSpace = await session.requestReferenceSpace("viewer");
     const localSpace = await session.requestReferenceSpace("local");
-    // entityTypes: hit-test against point-cloud features as well as full
-    // planes, not just planes alone. ARCore/ARKit often have usable depth
-    // points on a surface before they've built up enough data to commit to
-    // a full plane polygon, so testing against points too means the live hit
-    // test (and therefore placement) can succeed earlier, before a plane
-    // exists.
+    // entityTypes: hit-test against point-cloud features and detected
+    // meshes as well as full planes — not just planes alone. ARCore/ARKit
+    // often have usable depth points on a surface before they've built up
+    // enough data to commit to a full plane polygon, so testing against
+    // points too means the live hit test (and therefore placement) can
+    // succeed earlier, before a plane exists. 'mesh' is included for
+    // devices that expose scene-mesh reconstruction instead of/alongside
+    // plane detection (mainly non-ARCore WebXR runtimes) — on devices that
+    // don't support it, the browser simply ignores that entry, so it's a
+    // free additional signal wherever it IS available.
     const hitTestSource = await (session as any).requestHitTestSource({
       space: viewerSpace,
-      entityTypes: ["plane", "point"],
+      entityTypes: ["plane", "point", "mesh"],
     });
     // Transient-input hit test source: gives a per-touch-point hit test each
     // frame, independent of the viewer-center hit test above. This is what
     // powers press-and-drag — the model follows whichever finger is down,
-    // not just the center of the screen.
-    const transientHitTestSource = await (session as any).requestHitTestSourceForTransientInput({
-      profile: "generic-touchscreen",
-    });
+    // not just the center of the screen. Wrapped in try/catch and made
+    // optional: this is drag-to-move capability, not core placement — a
+    // device/browser combo that rejects this specific request (e.g. no
+    // matching input profile) should lose dragging, not the entire AR
+    // session, which is what an unhandled rejection here would have done
+    // (this whole function's caller only has one generic catch-all that
+    // treats ANY failure as "AR completely unsupported on this device").
+    let transientHitTestSource: any = null;
+    try {
+      transientHitTestSource = await (session as any).requestHitTestSourceForTransientInput({
+        profile: "generic-touchscreen",
+      });
+    } catch (err) {
+      console.warn("[WebXRPlacementViewer] Drag-to-move unavailable on this device:", err);
+    }
 
     // --- Persistent anchors: try to restore a remembered placement ---
     // anchorsSupported reflects the specific persistence extension, not
@@ -761,6 +906,12 @@ export function WebXRPlacementViewer({
     }
 
     setPhase("active-searching");
+
+    // Only relevant if we're actually about to scan live — a restored
+    // persistent anchor places the model immediately (see the anchor
+    // tracking block in the animation loop below), so there's nothing to
+    // time out on in that case.
+    scanTimeoutId = activeAnchor ? null : setTimeout(() => setScanningTooLong(true), 8000);
 
     // Reused every frame for the native + fallback hit tests, so placement
     // (onSelect) always has the latest live result to work with — even
@@ -813,6 +964,11 @@ export function WebXRPlacementViewer({
       // deliberately left untouched by a re-tap/re-place.
       placedModel.position.setFromMatrixPosition(hitMatrix);
       setPhase("active-placed");
+      if (scanTimeoutId) {
+        clearTimeout(scanTimeoutId);
+        scanTimeoutId = null;
+      }
+      setScanningTooLong(false);
       // A fresh tap always means "place it HERE, right now" — any anchor
       // we were previously tracking (restored from last visit, or from an
       // earlier tap this same session) no longer describes where the
@@ -901,51 +1057,19 @@ export function WebXRPlacementViewer({
       session.removeEventListener("select", onSelect);
       session.removeEventListener("selectstart", onSelectStart);
       session.removeEventListener("selectend", onSelectEnd);
-      if (overlayEl) {
-        overlayEl.removeEventListener("touchstart", onOverlayTouchStart);
-        overlayEl.removeEventListener("touchmove", onOverlayTouchMove);
-        overlayEl.removeEventListener("touchend", onOverlayTouchEnd);
-        overlayEl.removeEventListener("touchcancel", onOverlayTouchEnd);
-      }
       hitTestSource?.cancel?.();
       transientHitTestSource?.cancel?.();
-      renderer.setAnimationLoop(null);
-      renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
-      renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
-      for (const mesh of planeMeshes.values()) {
-        scene.remove(mesh);
-        mesh.geometry.dispose();
-      }
-      planeMeshes.clear();
-      planeMaterial.dispose();
-
-      // Reticle geometry/material are created fresh every runArSession call
-      // (nothing shares them across sessions), so leaving them undisposed
-      // here would leak one set of GPU buffers per AR session entered.
-      reticle.geometry.dispose();
-      reticleMaterial.dispose();
-
-      // The loaded GLB (pendingModel covers both the placed-and-unplaced
-      // cases, since placedModel is just a reference to the same object
-      // once placed) can carry a meaningful number of geometries/materials/
-      // textures for a detailed dish model — walk and dispose all of them
-      // rather than just dropping the JS reference, otherwise every
-      // enter/exit of AR on the same dish leaks that model's GPU memory.
-      if (pendingModel) {
-        disposeObject3D(pendingModel);
-      }
       activeAnchor?.delete?.();
 
-      renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
+      disposeSceneAndRenderer();
+
       sessionRef.current = null;
       // Session ended (user backed out via the system AR UI, or we called
       // endSession() ourselves). Re-entering AR from here requires a fresh
       // tap, so land on "idle" rather than auto-restarting.
       setPhase("idle");
       setRestoredFromMemory(false);
+      setScanningTooLong(false);
     }
     session.addEventListener("end", onSessionEnd);
 
@@ -967,12 +1091,30 @@ export function WebXRPlacementViewer({
     const anchorMatrix = new THREE.Matrix4();
     const anchorPosition = new THREE.Vector3();
 
-    renderer.setAnimationLoop((_time, frame: any) => {
+    // Reticle smoothing (surface-detection stability): the raw per-frame
+    // hit-test result is what actually gets used for placement — it stays
+    // untouched, always as fresh/accurate as possible. But visually
+    // DISPLAYING that raw result every frame makes the reticle noticeably
+    // hunt/twitch around even when the phone is essentially still, since
+    // the underlying tracking naturally has some frame-to-frame noise. This
+    // is a genuine running filter (persists across frames, unlike the
+    // scratch objects above), eased the same way the persistent-anchor and
+    // ImageTrackingViewer smoothing elsewhere in this app already are.
+    const reticleSmoothPos = new THREE.Vector3();
+    const reticleSmoothQuat = new THREE.Quaternion();
+    const reticleRawPos = new THREE.Vector3();
+    const reticleRawQuat = new THREE.Quaternion();
+    const reticleRawScale = new THREE.Vector3();
+    let reticleHasPose = false;
+    let lastReticleTime = performance.now();
+    const RETICLE_SMOOTHING_HALF_LIFE_MS = 70;
+
+    renderer.setAnimationLoop((time: number, frame: any) => {
       if (!frame) return;
 
       const viewerPose = frame.getViewerPose(localSpace);
 
-      syncPlaneMeshes(frame, localSpace);
+      syncPlaneMeshes(frame, localSpace, time);
 
       // --- Layer 1: native hit test (always computed, drives placement) ---
       hitValid = false;
@@ -993,18 +1135,33 @@ export function WebXRPlacementViewer({
       // The depth-sensing feature (if granted — device/browser dependent)
       // gives a live per-pixel depth buffer that's frequently populated
       // even before layer 1 succeeds, and independently of it. We sample
-      // the depth at screen center and project it out along the camera's
-      // own forward ray to get a candidate surface point. This is wrapped
-      // in a try/catch and a typeof check so browsers without the API (or
-      // frames where it hasn't warmed up yet) just fall through to layer 3
-      // exactly as before — nothing here can break existing behavior.
+      // depth at screen center plus a few nearby points and average them,
+      // rather than reading a single pixel — individual depth pixels are
+      // genuinely noisy (sensor + stereo-matching noise), so a lone sample
+      // can read meaningfully wrong on any given frame even when the
+      // surface itself hasn't moved; averaging a handful of points is a
+      // real, cheap improvement to how stable/accurate this specific
+      // fallback layer is. This is wrapped in a try/catch and a typeof
+      // check so browsers without the API (or frames where it hasn't
+      // warmed up yet) just fall through to layer 3 exactly as before —
+      // nothing here can break existing behavior.
       if (!hitValid && viewerPose && typeof frame.getDepthInformation === "function") {
         try {
           const view = viewerPose.views[0];
           const depthInfo = frame.getDepthInformation(view);
           if (depthInfo) {
-            const depthMeters = depthInfo.getDepthInMeters(0.5, 0.5);
-            if (depthMeters > 0 && isFinite(depthMeters)) {
+            let sum = 0;
+            let count = 0;
+            for (let i = 0; i < DEPTH_SAMPLE_OFFSETS.length; i++) {
+              const [ox, oy] = DEPTH_SAMPLE_OFFSETS[i];
+              const d = depthInfo.getDepthInMeters(0.5 + ox, 0.5 + oy);
+              if (d > 0 && isFinite(d)) {
+                sum += d;
+                count++;
+              }
+            }
+            if (count > 0) {
+              const depthMeters = sum / count;
               depthViewMatrix.fromArray(view.transform.matrix);
               depthOrigin.setFromMatrixPosition(depthViewMatrix);
               depthForward.set(0, 0, -1).transformDirection(depthViewMatrix);
@@ -1027,13 +1184,13 @@ export function WebXRPlacementViewer({
       // raycast against the plane meshes we already have from
       // plane-detection instead — using data that's already on hand,
       // without waiting on the next native hit-test or depth result.
-      if (!hitValid && viewerPose && planeMeshes.size > 0) {
+      if (!hitValid && viewerPose && planeMeshList.length > 0) {
         fallbackViewerMatrix.fromArray(viewerPose.transform.matrix);
         fallbackOrigin.setFromMatrixPosition(fallbackViewerMatrix);
         fallbackDirection.set(0, 0, -1).transformDirection(fallbackViewerMatrix);
         fallbackRaycaster.set(fallbackOrigin, fallbackDirection);
 
-        const intersections = fallbackRaycaster.intersectObjects(Array.from(planeMeshes.values()), false);
+        const intersections = fallbackRaycaster.intersectObjects(planeMeshList, false);
         if (intersections.length > 0) {
           const hit = intersections[0];
           const planeMesh = hit.object as THREE.Mesh;
@@ -1089,6 +1246,11 @@ export function WebXRPlacementViewer({
             placedModel.position.copy(anchorPosition);
             setPhase("active-placed");
             setRestoredFromMemory(true);
+            if (scanTimeoutId) {
+              clearTimeout(scanTimeoutId);
+              scanTimeoutId = null;
+            }
+            setScanningTooLong(false);
           } else if (placedModel) {
             placedModel.position.copy(anchorPosition);
           }
@@ -1106,12 +1268,35 @@ export function WebXRPlacementViewer({
           placedModel.position.z
         );
         reticle.visible = true;
+        reticleHasPose = false; // next time it's searching again, snap fresh
       } else if (hitValid) {
-        reticle.matrix.copy(hitMatrix);
+        reticleRawPos.setFromMatrixPosition(hitMatrix);
+        reticleRawQuat.setFromRotationMatrix(hitMatrix);
+        reticleRawScale.setFromMatrixScale(hitMatrix);
+
+        if (!reticleHasPose) {
+          // First hit after not having one (session start, or just lost
+          // and re-found) — snap instantly rather than smoothing in from
+          // wherever the reticle last was, for the same reason placement
+          // itself always uses the raw, unsmoothed hit result: the first
+          // reading in a new tracking streak has no "previous frame" to
+          // meaningfully ease from.
+          reticleSmoothPos.copy(reticleRawPos);
+          reticleSmoothQuat.copy(reticleRawQuat);
+          reticleHasPose = true;
+        } else {
+          const dt = Math.max(0, time - lastReticleTime);
+          const alpha = 1 - Math.pow(0.5, dt / RETICLE_SMOOTHING_HALF_LIFE_MS);
+          reticleSmoothPos.lerp(reticleRawPos, alpha);
+          reticleSmoothQuat.slerp(reticleRawQuat, alpha);
+        }
+        reticle.matrix.compose(reticleSmoothPos, reticleSmoothQuat, reticleRawScale);
         reticle.visible = true;
       } else {
         reticle.visible = false;
+        reticleHasPose = false;
       }
+      lastReticleTime = time;
 
       renderer.render(scene, camera);
     });
@@ -1247,6 +1432,16 @@ export function WebXRPlacementViewer({
             <span style={{ color: T.muted, fontSize: "0.82rem" }}>
               Tap elsewhere to move it, drag to slide it, or twist two fingers
               to rotate it.
+            </span>
+          </div>
+        )}
+
+        {phase === "active-searching" && scanningTooLong && (
+          <div style={{ ...coachStyle, top: "auto", bottom: "30%", pointerEvents: "none" }}>
+            <span style={{ color: T.muted, fontSize: "0.78rem" }}>
+              Still searching? Try a well-lit, flat surface with some texture
+              or pattern — plain white tables and glossy/reflective surfaces
+              are the hardest to track.
             </span>
           </div>
         )}
