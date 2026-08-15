@@ -209,6 +209,8 @@ export function SceneViewer() {
         mindTargetUrl={scene.mind_target_url}
         name={scene.name}
         exposure={scene.exposure}
+        primaryColor={scene.primary_color}
+        secondaryColor={scene.secondary_color}
         onExit={() => setImageTrackingActive(false)}
       />
     );
@@ -222,6 +224,8 @@ export function SceneViewer() {
         modelScale={scene.webxr_model_scale}
         anchorKey={scene.id}
         exposure={scene.exposure}
+        primaryColor={scene.primary_color}
+        secondaryColor={scene.secondary_color}
         onExit={() => setWebXrActive(false)}
         onFallbackToSceneViewer={() => {
           setWebXrActive(false);

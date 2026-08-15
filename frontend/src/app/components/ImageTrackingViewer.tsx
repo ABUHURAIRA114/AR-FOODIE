@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { T } from "./tokens.mts";
+import { getContrastTextColor } from "../lib/colorContrast";
 
 /**
  * ImageTrackingViewer
@@ -59,6 +60,10 @@ interface ImageTrackingViewerProps {
    * Defaults to 1 (neutral) if not supplied.
    */
   exposure?: number;
+  /** Restaurant's primary brand color — same value SceneViewer themes its buttons/accents with. Falls back to the app default. */
+  primaryColor?: string | null;
+  /** Restaurant's secondary brand color — same value SceneViewer uses as its page background. Falls back to white. */
+  secondaryColor?: string | null;
 }
 
 type TrackingPhase = "loading" | "ready" | "scanning" | "found" | "camera-denied" | "error";
@@ -80,7 +85,16 @@ function stopCameraStream(mindarThree: any) {
   }
 }
 
-export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, modelScale = 1, exposure = 1 }: ImageTrackingViewerProps) {
+export function ImageTrackingViewer({
+  glbUrl,
+  mindTargetUrl,
+  name,
+  onExit,
+  modelScale = 1,
+  exposure = 1,
+  primaryColor: primaryColorProp,
+  secondaryColor: secondaryColorProp,
+}: ImageTrackingViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
   // Holds the spin group (see init() below) once the model has finished
@@ -99,6 +113,15 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
   const cameraRef = useRef<THREE.Camera | null>(null);
   const [phase, setPhase] = useState<TrackingPhase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Same color scheme SceneViewer/WebXRPlacementViewer compute from the
+  // same two API fields — kept identical on purpose so this fallback path
+  // doesn't look like a different app from either of them.
+  const primaryColor = primaryColorProp || T.primary;
+  const onPrimary = getContrastTextColor(primaryColor, "#1a1a1a", "#ffffff");
+  const secondaryColor = secondaryColorProp || "#ffffff";
+  const onSecondary = getContrastTextColor(secondaryColor, "#1a1a1a", "#ffffff");
+  const secondaryMuted = onSecondary === "#1a1a1a" ? "rgba(26,26,26,0.6)" : "rgba(255,255,255,0.7)";
 
   useEffect(() => {
     let cancelled = false;
@@ -683,7 +706,7 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
         position: "relative",
         width: "100%",
         height: "100vh",
-        background: T.bg,
+        background: secondaryColor,
         overflow: "hidden",
       }}
     >
@@ -722,27 +745,38 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
 
       <div ref={containerRef} className="mindar-container" />
 
-      {/* Name pill, consistent with the main viewer */}
+      {/* Same header treatment as SceneViewer/WebXRPlacementViewer: left-
+          aligned white card, less-rounded corners, vertical primaryColor
+          accent bar — not just similar colors, the same actual layout, so
+          this fallback path still reads as the same app/page. */}
       <div
         style={{
           position: "absolute",
           top: "1.2rem",
-          left: "50%",
-          transform: "translateX(-50%)",
+          left: "1.2rem",
           zIndex: 10,
-          background: "rgba(13,26,31,0.75)",
-          backdropFilter: "blur(12px)",
-          border: `1px solid ${T.border}`,
-          borderRadius: 999,
-          padding: "0.45rem 1.4rem",
-          fontSize: "1.05rem",
-          fontWeight: 700,
-          letterSpacing: "-0.01em",
-          whiteSpace: "nowrap",
-          color: T.accent,
+          background: "#ffffff",
+          border: "1px solid rgba(0,0,0,0.08)",
+          borderRadius: 10,
+          padding: "0.55rem 1.3rem 0.55rem 0.9rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.7rem",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
         }}
       >
-        {name}
+        <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: primaryColor, flexShrink: 0 }} />
+        <span
+          style={{
+            fontSize: "1.05rem",
+            fontWeight: 700,
+            letterSpacing: "-0.01em",
+            whiteSpace: "nowrap",
+            color: "#1a1a1a",
+          }}
+        >
+          {name}
+        </span>
       </div>
 
       {onExit && (
@@ -753,14 +787,15 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
             top: "1.2rem",
             right: "1.2rem",
             zIndex: 10,
-            background: "rgba(13,26,31,0.75)",
-            color: T.text,
-            border: `1px solid ${T.border}`,
+            background: "#ffffff",
+            color: "#1a1a1a",
+            border: "1px solid rgba(0,0,0,0.08)",
             borderRadius: 999,
             width: 36,
             height: 36,
             fontSize: "1rem",
             cursor: "pointer",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
           }}
           aria-label="Exit image tracking"
         >
@@ -770,14 +805,14 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
 
       {phase === "loading" && (
         <div style={overlayStyle}>
-          <span style={{ color: T.muted, fontSize: "0.9rem" }}>Setting up camera...</span>
+          <span style={{ color: secondaryMuted, fontSize: "0.9rem" }}>Setting up camera...</span>
         </div>
       )}
 
       {phase === "scanning" && (
         <div style={coachStyle}>
-          <span style={{ fontWeight: 700, color: T.accent }}>Point your camera at the menu photo</span>
-          <span style={{ color: T.muted, fontSize: "0.82rem" }}>
+          <span style={{ fontWeight: 700, color: primaryColor }}>Point your camera at the menu photo</span>
+          <span style={{ color: "#5a5a5a", fontSize: "0.82rem" }}>
             Hold steady and make sure it's well lit.
           </span>
         </div>
@@ -785,7 +820,7 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
 
       {phase === "found" && (
         <div style={{ ...coachStyle, top: "auto", bottom: "10%" }}>
-          <span style={{ color: T.muted, fontSize: "0.82rem" }}>
+          <span style={{ color: "#5a5a5a", fontSize: "0.82rem" }}>
             Twist two fingers to spin the dish.
           </span>
         </div>
@@ -793,7 +828,7 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
 
       {phase === "camera-denied" && (
         <div style={overlayStyle}>
-          <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+          <span style={{ color: onSecondary === "#1a1a1a" ? "#dc2626" : "#fca5a5", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
             Camera access is needed for this. Please allow camera permissions and reload.
           </span>
         </div>
@@ -801,13 +836,18 @@ export function ImageTrackingViewer({ glbUrl, mindTargetUrl, name, onExit, model
 
       {phase === "error" && (
         <div style={overlayStyle}>
-          <span style={{ color: "#f87171", fontSize: "0.9rem" }}>{errorMessage}</span>
+          <span style={{ color: onSecondary === "#1a1a1a" ? "#dc2626" : "#fca5a5", fontSize: "0.9rem" }}>{errorMessage}</span>
         </div>
       )}
     </div>
   );
 }
 
+// Used only for the "loading"/"camera-denied"/"error" phases, none of
+// which have a live camera feed behind them — background is transparent on
+// purpose so the parent container's secondaryColor (per-restaurant) shows
+// through directly, the same flat-color approach SceneViewer uses rather
+// than a separate dark scrim.
 const overlayStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
@@ -815,18 +855,22 @@ const overlayStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "rgba(13,26,31,0.6)",
+  background: "transparent",
 };
 
+// Used only during "scanning"/"found", where the live camera feed IS
+// genuinely behind this — so unlike overlayStyle above this needs its own
+// opaque-ish surface: a light frosted card instead of the old dark one, to
+// match the rest of the light theme while staying legible over live video.
 const coachStyle: React.CSSProperties = {
   position: "absolute",
   top: "18%",
   left: "50%",
   transform: "translateX(-50%)",
   zIndex: 11,
-  background: "rgba(13,26,31,0.85)",
+  background: "rgba(255,255,255,0.92)",
   backdropFilter: "blur(8px)",
-  border: "1px solid rgba(255,255,255,0.12)",
+  border: "1px solid rgba(0,0,0,0.08)",
   borderRadius: 14,
   padding: "0.8rem 1.3rem",
   display: "flex",
@@ -835,4 +879,5 @@ const coachStyle: React.CSSProperties = {
   gap: "0.3rem",
   maxWidth: "78%",
   textAlign: "center",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
 };

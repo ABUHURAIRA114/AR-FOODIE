@@ -4,6 +4,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { T } from "./tokens.mts";
+import { getContrastTextColor } from "../lib/colorContrast";
 
 /**
  * WebXRPlacementViewer
@@ -168,6 +169,10 @@ interface WebXRPlacementViewerProps {
    * Defaults to 1 (neutral) if not supplied.
    */
   exposure?: number;
+  /** Restaurant's primary brand color — same value SceneViewer themes its buttons/accents with. Falls back to the app default. */
+  primaryColor?: string | null;
+  /** Restaurant's secondary brand color — same value SceneViewer uses as its page background. Falls back to white. */
+  secondaryColor?: string | null;
 }
 
 const ANCHOR_STORAGE_PREFIX = "dinenics-xr-anchor:";
@@ -277,6 +282,8 @@ export function WebXRPlacementViewer({
   modelScale = 1,
   anchorKey,
   exposure = 1,
+  primaryColor: primaryColorProp,
+  secondaryColor: secondaryColorProp,
 }: WebXRPlacementViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -289,6 +296,17 @@ export function WebXRPlacementViewer({
   // purely cosmetic (drives the "remembered from last time" coaching text
   // below), cleared the moment the user taps to re-place.
   const [restoredFromMemory, setRestoredFromMemory] = useState(false);
+
+  // Same color scheme SceneViewer computes from the same two API fields —
+  // kept identical on purpose (including the same fallbacks and the same
+  // getContrastTextColor helper) so the AR view doesn't look like a
+  // different app from the page the user just tapped "View in AR" from.
+  const primaryColor = primaryColorProp || T.primary;
+  const onPrimary = getContrastTextColor(primaryColor, "#1a1a1a", "#ffffff");
+  const secondaryColor = secondaryColorProp || "#ffffff";
+  const onSecondary = getContrastTextColor(secondaryColor, "#1a1a1a", "#ffffff");
+  const secondaryMuted = onSecondary === "#1a1a1a" ? "rgba(26,26,26,0.6)" : "rgba(255,255,255,0.7)";
+  const secondaryTrack = onSecondary === "#1a1a1a" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.18)";
 
   // --- Feature-detect WebXR + hit-test support, then go straight into AR ---
   // No intermediate "Start AR" tap here: the click that navigated the user
@@ -1133,7 +1151,7 @@ export function WebXRPlacementViewer({
         position: "relative",
         width: "100%",
         height: "100vh",
-        background: T.bg,
+        background: secondaryColor,
         overflow: "hidden",
       }}
     >
@@ -1147,26 +1165,40 @@ export function WebXRPlacementViewer({
           call preventDefault once a second finger lands), so they still
           pass through to WebXR's own 'select' handling untouched. */}
       <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "auto", touchAction: "none" }}>
+        {/* Same treatment as SceneViewer's dish-name header: left-aligned,
+            white card, much less rounded than the old floating pill, with
+            a small vertical accent bar in the restaurant's primaryColor —
+            not just similar colors, the actual same layout, so this reads
+            as the same page rather than a different screen the user
+            "left" when they tapped View in AR. */}
         <div
           style={{
             position: "absolute",
             top: "1.2rem",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(13,26,31,0.75)",
-            backdropFilter: "blur(12px)",
-            border: `1px solid ${T.border}`,
-            borderRadius: 999,
-            padding: "0.45rem 1.4rem",
-            fontSize: "1.05rem",
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-            whiteSpace: "nowrap",
-            color: T.accent,
+            left: "1.2rem",
+            background: "#ffffff",
+            border: "1px solid rgba(0,0,0,0.08)",
+            borderRadius: 10,
+            padding: "0.55rem 1.3rem 0.55rem 0.9rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.7rem",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
             pointerEvents: "none",
           }}
         >
-          {name}
+          <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: primaryColor, flexShrink: 0 }} />
+          <span
+            style={{
+              fontSize: "1.05rem",
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+              whiteSpace: "nowrap",
+              color: "#1a1a1a",
+            }}
+          >
+            {name}
+          </span>
         </div>
 
         {onExit && (
@@ -1179,15 +1211,16 @@ export function WebXRPlacementViewer({
               position: "absolute",
               top: "1.2rem",
               right: "1.2rem",
-              background: "rgba(13,26,31,0.75)",
-              color: T.text,
-              border: `1px solid ${T.border}`,
+              background: "#ffffff",
+              color: "#1a1a1a",
+              border: "1px solid rgba(0,0,0,0.08)",
               borderRadius: 999,
               width: 36,
               height: 36,
               fontSize: "1rem",
               cursor: "pointer",
               pointerEvents: "auto",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
             }}
             aria-label="Exit AR"
           >
@@ -1213,15 +1246,16 @@ export function WebXRPlacementViewer({
               top: "4.2rem",
               left: "50%",
               transform: "translateX(-50%)",
-              background: "rgba(13,26,31,0.75)",
-              color: T.muted,
-              border: `1px solid ${T.border}`,
+              background: "#ffffff",
+              color: "#5a5a5a",
+              border: "1px solid rgba(0,0,0,0.08)",
               borderRadius: 999,
               padding: "0.4rem 0.8rem",
               fontSize: "0.72rem",
               cursor: "pointer",
               pointerEvents: "auto",
               whiteSpace: "nowrap",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
             }}
           >
             Use Scene Viewer instead
@@ -1230,8 +1264,8 @@ export function WebXRPlacementViewer({
 
         {phase === "active-searching" && (
           <div style={{ ...coachStyle, pointerEvents: "none" }}>
-            <span style={{ fontWeight: 700, color: T.accent }}>Move your phone slowly</span>
-            <span style={{ color: T.muted, fontSize: "0.82rem" }}>
+            <span style={{ fontWeight: 700, color: primaryColor }}>Move your phone slowly</span>
+            <span style={{ color: "#5a5a5a", fontSize: "0.82rem" }}>
               Green highlights show surfaces found so far — tap one to place.
             </span>
           </div>
@@ -1240,11 +1274,11 @@ export function WebXRPlacementViewer({
         {phase === "active-placed" && (
           <div style={{ ...coachStyle, top: "auto", bottom: "16%", pointerEvents: "none" }}>
             {restoredFromMemory && (
-              <span style={{ fontWeight: 700, color: T.accent, fontSize: "0.82rem" }}>
+              <span style={{ fontWeight: 700, color: primaryColor, fontSize: "0.82rem" }}>
                 📍 Placed from your last visit
               </span>
             )}
-            <span style={{ color: T.muted, fontSize: "0.82rem" }}>
+            <span style={{ color: "#5a5a5a", fontSize: "0.82rem" }}>
               Tap elsewhere to move it, drag to slide it, or twist two fingers
               to rotate it.
             </span>
@@ -1253,7 +1287,7 @@ export function WebXRPlacementViewer({
 
         {phase === "active-searching" && !domOverlaySupported && (
           <div style={{ ...coachStyle, top: "auto", bottom: "30%", pointerEvents: "none" }}>
-            <span style={{ color: "#f87171", fontSize: "0.78rem" }}>
+            <span style={{ color: "#dc2626", fontSize: "0.78rem" }}>
               On-screen guidance isn't available in this browser — point at a
               flat surface and tap to place.
             </span>
@@ -1263,14 +1297,14 @@ export function WebXRPlacementViewer({
 
       {phase === "checking-support" && (
         <div style={overlayStyle}>
-          <span style={{ color: T.muted, fontSize: "0.9rem" }}>Checking AR support...</span>
+          <span style={{ color: secondaryMuted, fontSize: "0.9rem" }}>Checking AR support...</span>
         </div>
       )}
 
       {phase === "unsupported" && (
         <div style={overlayStyle}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
-            <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+            <span style={{ color: onSecondary === "#1a1a1a" ? "#dc2626" : "#fca5a5", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
               This browser doesn't support WebXR AR. Try Chrome on a recent
               Android phone.
             </span>
@@ -1278,8 +1312,8 @@ export function WebXRPlacementViewer({
               <button
                 onClick={onFallbackToSceneViewer}
                 style={{
-                  background: T.primary,
-                  color: "#fff",
+                  background: primaryColor,
+                  color: onPrimary,
                   border: "none",
                   borderRadius: 10,
                   padding: "0.6rem 1.4rem",
@@ -1300,15 +1334,15 @@ export function WebXRPlacementViewer({
           <button
             onClick={startSession}
             style={{
-              background: T.primary,
-              color: "#fff",
+              background: primaryColor,
+              color: onPrimary,
               border: "none",
               borderRadius: 12,
               padding: "0.85rem 2.4rem",
               fontSize: "1rem",
               fontWeight: 700,
               cursor: "pointer",
-              boxShadow: "0 4px 24px rgba(166,81,17,0.4)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
             }}
           >
             Enter AR
@@ -1320,33 +1354,33 @@ export function WebXRPlacementViewer({
         <div style={overlayStyle}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.8rem" }}>
             <div style={{
-              width: 36, height: 36, border: `3px solid ${T.border}`,
-              borderTopColor: T.accent, borderRadius: "50%",
+              width: 36, height: 36, border: `3px solid ${secondaryTrack}`,
+              borderTopColor: primaryColor, borderRadius: "50%",
               animation: "xrSpin 0.8s linear infinite",
             }} />
-            <span style={{ color: T.muted, fontSize: "0.9rem" }}>Loading 3D model...</span>
+            <span style={{ color: secondaryMuted, fontSize: "0.9rem" }}>Loading 3D model...</span>
           </div>
         </div>
       )}
 
       {phase === "requesting" && (
         <div style={overlayStyle}>
-          <span style={{ color: T.muted, fontSize: "0.9rem" }}>Starting AR session...</span>
+          <span style={{ color: secondaryMuted, fontSize: "0.9rem" }}>Starting AR session...</span>
         </div>
       )}
 
       {phase === "denied" && (
         <div style={overlayStyle}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
-            <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+            <span style={{ color: onSecondary === "#1a1a1a" ? "#dc2626" : "#fca5a5", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
               Camera access is needed for AR. Please allow camera permissions and try again.
             </span>
             {onFallbackToSceneViewer && (
               <button
                 onClick={onFallbackToSceneViewer}
                 style={{
-                  background: T.primary,
-                  color: "#fff",
+                  background: primaryColor,
+                  color: onPrimary,
                   border: "none",
                   borderRadius: 10,
                   padding: "0.6rem 1.4rem",
@@ -1365,15 +1399,15 @@ export function WebXRPlacementViewer({
       {phase === "error" && (
         <div style={overlayStyle}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
-            <span style={{ color: "#f87171", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
+            <span style={{ color: onSecondary === "#1a1a1a" ? "#dc2626" : "#fca5a5", fontSize: "0.9rem", textAlign: "center", padding: "0 2rem" }}>
               {errorMessage}
             </span>
             {onFallbackToSceneViewer && (
               <button
                 onClick={onFallbackToSceneViewer}
                 style={{
-                  background: T.primary,
-                  color: "#fff",
+                  background: primaryColor,
+                  color: onPrimary,
                   border: "none",
                   borderRadius: 10,
                   padding: "0.6rem 1.4rem",
@@ -1392,6 +1426,12 @@ export function WebXRPlacementViewer({
   );
 }
 
+// Used only for phases with no live camera feed behind them yet/anymore
+// (checking-support, unsupported, idle, active-loading, requesting, denied,
+// error) — background is transparent on purpose so the parent container's
+// secondaryColor (set inline, since it's per-restaurant) shows through
+// directly, the same flat-color approach SceneViewer uses rather than a
+// separate dark scrim.
 const overlayStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
@@ -1399,17 +1439,21 @@ const overlayStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "rgba(13,26,31,0.6)",
+  background: "transparent",
 };
 
+// Used only during active AR (camera passthrough is genuinely behind this),
+// so unlike overlayStyle above this DOES need its own opaque-ish surface —
+// a light frosted card instead of the old dark one, to match the rest of
+// the light theme while staying legible over live video.
 const coachStyle: React.CSSProperties = {
   position: "absolute",
   top: "18%",
   left: "50%",
   transform: "translateX(-50%)",
-  background: "rgba(13,26,31,0.85)",
+  background: "rgba(255,255,255,0.92)",
   backdropFilter: "blur(8px)",
-  border: "1px solid rgba(255,255,255,0.12)",
+  border: "1px solid rgba(0,0,0,0.08)",
   borderRadius: 14,
   padding: "0.8rem 1.3rem",
   display: "flex",
@@ -1418,6 +1462,7 @@ const coachStyle: React.CSSProperties = {
   gap: "0.3rem",
   maxWidth: "78%",
   textAlign: "center",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
 };
 
 // Inject spinner keyframe once
