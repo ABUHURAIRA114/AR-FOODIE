@@ -4,9 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite",
-    "start": "npm run build && npx serve -s -l 5173 dist"
+    "build": "node init && vite build",
+    "dev": "node init && vite",
+    "start": "node init && npm run build && npx serve -s -l 5173 dist"
   },
   "dependencies": {
     "mind-ar": "^1.2.5",
