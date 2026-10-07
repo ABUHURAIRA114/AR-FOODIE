@@ -56,15 +56,15 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://dinenics-api.up.railway.app',
+        target: 'https://backend-dinenics-production.up.railway.app',
         changeOrigin: true,
       },
       '/media': {
-        target: 'https://dinenics-api.up.railway.app',
+        target: 'https://backend-dinenics-production.up.railway.app',
         changeOrigin: true,
       },
       '/view': {
-        target: 'https://dinenics-api.up.railway.app',
+        target: 'https://backend-dinenics-production.up.railway.app',
         changeOrigin: true,
       },
 
